@@ -89,14 +89,7 @@
 
     pointing_listener: pointing_listener {
         compatible = "zmk,input-listener";
-        //status = "disabled";
-        device = <&spi0>;
-        input-processors = <&mouse_runtime_input_processor>;
-
-        /* Layer 3 (ARROW): convert cursor movement to scroll */
-        scroller {
-            layers = <3>;
-        };
+        status = "disabled";
     };
 
     vbatt: vbatt {
