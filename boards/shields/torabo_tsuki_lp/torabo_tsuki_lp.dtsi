@@ -89,11 +89,7 @@
 
     pointing_listener: pointing_listener {
         compatible = "zmk,input-listener";
-        status = "disabled";
-    };
-
-    trackball_listener: trackball_listener {
-        compatible = "zmk,input-listener";
+        //status = "disabled";
         device = <&trackball>;
         input-processors = <&mouse_runtime_input_processor>;
 
