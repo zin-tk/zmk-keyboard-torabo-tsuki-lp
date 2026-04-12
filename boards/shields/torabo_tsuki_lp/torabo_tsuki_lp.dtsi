@@ -96,7 +96,7 @@
         /* Layer 3 (ARROW): convert cursor movement to scroll */
         scroller {
             layers = <3>;
-            input-processors = <&zip_xy_to_scroll_mapper &scroll_runtime_input_processor>;
+            input-processors = <&mouse_runtime_input_processor>;
         };
     };
 
