@@ -1,0 +1,5 @@
+# Nanopb options file for battery_history.proto
+# This defines max sizes for arrays and strings
+
+# Error message max size
+zmk.battery_history.ErrorResponse.message                    max_size:64

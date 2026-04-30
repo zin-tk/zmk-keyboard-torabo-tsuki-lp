@@ -15,5 +15,24 @@ config INPUT
 
 config ZMK_MOUSE
     default y
+
+config ZMK_BATTERY_REPORTING
+    default y
+
+config ZMK_BATTERY_HISTORY
+    bool
+    default y
+
+config ZMK_BATTERY_HISTORY_STUDIO_RPC
+    bool
+    default y
+
+config NANOPB
+    bool
+    default y
+
+config ZMK_SPLIT_RELAY_EVENT
+    bool
+    default y
  
 endif

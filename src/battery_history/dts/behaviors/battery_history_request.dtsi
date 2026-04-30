@@ -1,0 +1,15 @@
+/*
+* Copyright (c) 2026 cormoran
+*
+* SPDX-License-Identifier: MIT
+*/
+
+/ {
+	behaviors {
+		bhr: bhr {
+			compatible = "zmk,behavior-battery-history-request";
+			#binding-cells = <0>;
+			display-name = "Battery History Request";
+		};
+	};
+};
