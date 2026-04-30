@@ -1,6 +1,7 @@
 #include "torabo_tsuki_lp.dtsi"
 #include <input/processors.dtsi>
 #include <dt-bindings/zmk/input_transform.h>
+#include <dt-bindings/zmk/modifiers.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
@@ -8,6 +9,25 @@
         compatible = "zmk,input-processor-temp-layer";
         #input-processor-cells = <2>;
         excluded-positions = <16 17 18 28 29>;
+    };
+    scroll_inertia_v: scroll_inertia_v {
+        compatible = "zmk,input-processor-scroll-inertia";
+        #input-processor-cells = <0>;
+        /* axis: 0 = 両軸（自由2D）,
+                  1 = Y軸のみ（縦スクロール）,
+                  2 = X軸のみ（横スクロール） */
+        axis      = <1>;
+        layer     = <5>;          /* 縦スクロール用のレイヤー番号 */
+
+        /* 後段の zip_scroll_scaler の引数と合わせる */
+        scale     = <2>;
+        scale-div = <3>;
+
+        /* オプション: Shiftを押している間だけ出力軸を反転 */
+        swap-mod  = <(MOD_LSFT|MOD_RSFT)>;
+
+        /* オプション: 右GUIを押している間だけ両軸フリー （2Dスクロール） */
+        unlock-mod = <MOD_RGUI>;
     };
 };
 
@@ -19,7 +39,8 @@
         layers = <5>;
         input-processors = <
             &zip_xy_to_scroll_mapper
-            &zip_scroll_scaler 1 20
+            &scroll_inertia_v
+            &zip_scroll_scaler 2 3
         >;
     };
 };
