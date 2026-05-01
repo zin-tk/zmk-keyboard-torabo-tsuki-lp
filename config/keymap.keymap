@@ -104,7 +104,7 @@
             compatible = "zmk,behavior-hold-tap";
             #binding-cells = <2>;
             flavor = "balanced";
-            tapping-term-ms = <200>;
+            tapping-term-ms = <280>;
             bindings = <&kp>, <&kp>;
 
             display-name = "Mod-Tap";
@@ -157,21 +157,21 @@
 
         layer_mac {
             bindings = <
-&none  &none          &none     &none     &none             &none                                   &none            &none  &none      &none     &none             &none
-&none  &kp Q          &kp W     &kp E     &kp R             &kp T                                   &kp Y            &kp U  &kp I      &kp O     &kp P             &none
-&none  &mt1 LCTRL A   &kp S     &kp D     &kp F             &mt1 RCTRL G      &none      &none      &mt1 LCTRL H     &kp J  &kp K      &kp L     &mt1 RCTRL SEMI   &none
-&none  &mt1 LSHIFT Z  &kp X     &kp C     &kp V             &kp B             &kp DEL    &kp BSPC   &mt1 LSHIFT N    &kp M  &kp COMMA  &kp DOT   &mt1 RSHIFT FSLH  &none
-&none  &kp TAB        &kp LGUI  &kp LALT  &lt LT_NUM LANG2  &mo LT_SYM &mt1 LANG1 RSHFT  &kp SPACE  &lt LT_FN ENTER  &none  &none      &kp RGUI  &mo 2             &none
+&none  &none          &none     &none     &none             &none                                      &none            &none  &none      &none     &none             &none
+&none  &kp Q          &kp W     &kp E     &kp R             &kp T                                      &kp Y            &kp U  &kp I      &kp O     &kp P             &none
+&none  &mt1 LCTRL A   &kp S     &kp D     &kp F             &mt1 RCTRL G  &none             &none      &mt1 LCTRL H     &kp J  &kp K      &kp L     &mt1 RCTRL SEMI   &none
+&none  &mt1 LSHIFT Z  &kp X     &kp C     &kp V             &kp B         &kp DEL           &kp BSPC   &mt1 LSHIFT N    &kp M  &kp COMMA  &kp DOT   &mt1 RSHIFT FSLH  &none
+&none  &kp TAB        &kp LGUI  &kp LALT  &lt LT_NUM LANG2  &mo LT_SYM    &mt1 LANG1 RSHFT  &kp SPACE  &lt LT_FN ENTER  &none  &none      &kp RGUI  &mo 2             &none
             >;
         };
 
         layer_win {
             bindings = <
-&none  &none   &none   &none   &none            &none                                &none   &none   &none   &none   &none   &none
-&none  &trans  &trans  &trans  &trans           &trans                               &trans  &trans  &trans  &trans  &trans  &none
-&none  &trans  &trans  &trans  &trans           &trans      &none            &none   &trans  &trans  &trans  &trans  &trans  &none
-&none  &trans  &trans  &trans  &trans           &trans      &trans           &trans  &trans  &trans  &trans  &trans  &trans  &none
-&none  &trans  &trans  &trans  &lt LT_NUM INT5  &mo LT_SYM  &mt1 INT4 RSHIFT &trans  &trans  &none   &none   &trans  &trans  &none
+&none  &none   &none   &none   &none            &none                                 &none   &none   &none   &none   &none   &none
+&none  &trans  &trans  &trans  &trans           &trans                                &trans  &trans  &trans  &trans  &trans  &none
+&none  &trans  &trans  &trans  &trans           &trans      &none             &none   &trans  &trans  &trans  &trans  &trans  &none
+&none  &trans  &trans  &trans  &trans           &trans      &trans            &trans  &trans  &trans  &trans  &trans  &trans  &none
+&none  &trans  &trans  &trans  &lt LT_NUM INT5  &mo LT_SYM  &mt1 INT4 RSHIFT  &trans  &trans  &none   &none   &trans  &trans  &none
             >;
         };
 
@@ -187,21 +187,21 @@
 
         layer_symbol {
             bindings = <
-&none   &none                  &none       &none       &none            &none                             &none                 &none          &none             &none       &none      &none
-&trans  &kp LS(N1)             &kp LS(N2)  &kp LS(N3)  &kp LS(N4)       &kp LS(N5)                        &kp LS(N6)            &kp LS(N7)     &kp LS(N8)        &kp LS(N9)  &kp MINUS  &none
-&trans  &mt1 LCTRL N1          &kp N2      &kp N3      &kp N4           &mt1 RCTRL N5      &none  &none   &mt1 LCTRL N6         &kp N7         &kp N8            &kp N9      &mt1 RCTL N0     &none
-&trans  &mt1 LSHIFT LEFT_BRACE &kp MINUS   &kp EQUAL   &kp RIGHT_BRACE  &mt1 RSHIFT COLON  &trans &trans  &mt1 LSHIFT LS(MINUS) &kp LS(EQUAL)  &kp LEFT_BRACKET  &kp JP_AT   &mt1 RSHIFT JP_YEN &none
-&trans  &trans                 &trans      &trans      &trans           &trans             &trans &trans  &kp TAB               &kp DEL        &trans            &trans      &trans     &none
+&none   &none                   &none       &none       &none            &none                              &none                  &none          &none             &none       &none               &none
+&trans  &kp LS(N1)              &kp LS(N2)  &kp LS(N3)  &kp LS(N4)       &kp LS(N5)                         &kp LS(N6)             &kp LS(N7)     &kp LS(N8)        &kp LS(N9)  &kp MINUS           &none
+&trans  &mt1 LCTRL N1           &kp N2      &kp N3      &kp N4           &mt1 RCTRL N5      &none   &none   &mt1 LCTRL N6          &kp N7         &kp N8            &kp N9      &mt1 RCTL N0        &none
+&trans  &mt1 LSHIFT LEFT_BRACE  &kp MINUS   &kp EQUAL   &kp RIGHT_BRACE  &mt1 RSHIFT COLON  &trans  &trans  &mt1 LSHIFT LS(MINUS)  &kp LS(EQUAL)  &kp LEFT_BRACKET  &kp JP_AT   &mt1 RSHIFT JP_YEN  &none
+&trans  &trans                  &trans      &trans      &trans           &trans             &trans  &trans  &kp TAB                &kp DEL        &trans            &trans      &trans              &none
             >;
         };
 
         layer_3 {
             bindings = <
-&none  &none             &none    &none      &none       &none                           &none                    &none     &none      &none         &none                     &none
-&none  &kp F1            &kp F2   &kp F3     &kp F4      &kp F5                          &kp PG_UP                &kp HOME  &kp UP     &kp END       &kp ESCAPE                &none
-&none  &mt1 LCTRL LG(A)  &kp F7   &kp F8     &kp F9      &mt1 RCTRL F10  &none   &none   &mt1 LCTRL PG_DN         &kp LEFT  &kp DOWN   &kp RIGHT     &mt1 LCTRL TAB            &none
-&none  &mt1 LSHIFT LG(Z) &kp F12  &kp LG(C)  &kp LG(V)   &trans          &trans  &trans  &mt1 LSHIFT SINGLE_QUOTE &kp DQT   &kp GRAVE  &kp JP_COLON  &mt1 LSHIFT JP_UNDERSCORE &none
-&none  &trans            &trans   &trans     &kp DELETE  &kp TAB         &trans  &trans  &trans                   &none     &none      &trans        &trans                    &none
+&none  &none              &none    &none      &none       &none                           &none                     &none     &none      &none         &none                      &none
+&none  &kp F1             &kp F2   &kp F3     &kp F4      &kp F5                          &kp PG_UP                 &kp HOME  &kp UP     &kp END       &kp ESCAPE                 &none
+&none  &mt1 LCTRL LG(A)   &kp F7   &kp F8     &kp F9      &mt1 RCTRL F10  &none   &none   &mt1 LCTRL PG_DN          &kp LEFT  &kp DOWN   &kp RIGHT     &mt1 LCTRL TAB             &none
+&none  &mt1 LSHIFT LG(Z)  &kp F12  &kp LG(C)  &kp LG(V)   &trans          &trans  &trans  &mt1 LSHIFT SINGLE_QUOTE  &kp DQT   &kp GRAVE  &kp JP_COLON  &mt1 LSHIFT JP_UNDERSCORE  &none
+&none  &trans             &trans   &trans     &kp DELETE  &kp TAB         &trans  &trans  &trans                    &none     &none      &trans        &trans                     &none
             >;
         };
 
@@ -217,11 +217,11 @@
 
         layer_function {
             bindings = <
-&none  &none              &none   &none      &none      &none                    &none      &none   &none            &none            &none           &none
-&none  &kp F1             &kp F2  &kp F3     &kp F4     &kp F5                   &kp F6     &kp F7  &kp F8           &kp F9           &kp F10         &none
-&none  &mt1 LCTRL LG(A)   &none   &none      &none      &kp RCTRL  &none  &none  &kp LCTRL  &none   &kp JP_LBRACKET  &kp JP_RBRACKET  &mt1 RCTRL F11  &none
-&none  &mt1 LSHIFT LG(Z)  &none   &kp LG(C)  &kp LG(V)  &kp RSHIFT &none  &none  &kp LSHIFT &none   &kp JP_LBRACE    &kp JP_RBRACE    &mt1 RSHIFT F12 &none
-&none  &trans             &none   &none      &none      &none      &none  &none  &none      &none   &none            &none            &none           &none
+&none  &none              &none   &none      &none      &none                     &none       &none   &none            &none            &none            &none
+&none  &kp F1             &kp F2  &kp F3     &kp F4     &kp F5                    &kp F6      &kp F7  &kp F8           &kp F9           &kp F10          &none
+&none  &mt1 LCTRL LG(A)   &none   &none      &none      &kp RCTRL   &none  &none  &kp LCTRL   &none   &kp JP_LBRACKET  &kp JP_RBRACKET  &mt1 RCTRL F11   &none
+&none  &mt1 LSHIFT LG(Z)  &none   &kp LG(C)  &kp LG(V)  &kp RSHIFT  &none  &none  &kp LSHIFT  &none   &kp JP_LBRACE    &kp JP_RBRACE    &mt1 RSHIFT F12  &none
+&none  &trans             &none   &none      &none      &none       &none  &none  &none       &none   &none            &none            &none            &none
             >;
         };
 
