@@ -197,11 +197,11 @@
 
         layer_3 {
             bindings = <
-&none  &none              &none    &none      &none       &none                           &none                     &none     &none      &none         &none                      &none
-&none  &kp F1             &kp F2   &kp F3     &kp F4      &kp F5                          &kp PG_UP                 &kp HOME  &kp UP     &kp END       &kp ESCAPE                 &none
-&none  &mt1 LCTRL LG(A)   &kp F7   &kp F8     &kp F9      &mt1 RCTRL F10  &none   &none   &mt1 LCTRL PG_DN          &kp LEFT  &kp DOWN   &kp RIGHT     &mt1 LCTRL TAB             &none
-&none  &mt1 LSHIFT LG(Z)  &kp F12  &kp LG(C)  &kp LG(V)   &trans          &trans  &trans  &mt1 LSHIFT SINGLE_QUOTE  &kp DQT   &kp GRAVE  &kp JP_COLON  &mt1 LSHIFT JP_UNDERSCORE  &none
-&none  &trans             &trans   &trans     &kp DELETE  &kp TAB         &trans  &trans  &trans                    &none     &none      &trans        &trans                     &none
+&none  &none              &none    &none      &none       &none                           &none                   &none          &none             &none         &none                      &none
+&none  &kp F1             &kp F2   &kp F3     &kp F4      &kp F5                          &kp PG_UP               &kp HOME       &kp UP            &kp END       &kp ESCAPE                 &none
+&none  &mt1 LCTRL LG(A)   &kp F7   &kp F8     &kp F9      &mt1 RCTRL F10  &none   &none   &mt1 LCTRL PG_DN        &kp LEFT       &kp DOWN          &kp RIGHT     &mt1 LCTRL TAB             &none
+&none  &mt1 LSHIFT LG(Z)  &kp F12  &kp LG(C)  &kp LG(V)   &trans          &trans  &trans  &mt1 LSHIFT C_AC_CLOSE  &kp C_AC_BACK  &kp C_AC_FORWARD  &kp JP_COLON  &mt1 LSHIFT JP_UNDERSCORE  &none
+&none  &trans             &trans   &trans     &kp DELETE  &kp TAB         &trans  &trans  &trans                  &none          &none             &trans        &trans                     &none
             >;
         };
 
