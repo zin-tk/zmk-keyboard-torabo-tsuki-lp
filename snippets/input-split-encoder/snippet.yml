@@ -1,4 +1,3 @@
 name: input-split-encoder
-
-build:
+append:
   EXTRA_DTC_OVERLAY_FILE: input-split-encoder.overlay
