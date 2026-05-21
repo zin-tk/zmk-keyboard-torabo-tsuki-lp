@@ -6,6 +6,8 @@ manifest:
       url-base: https://github.com/sekigon-gonnoc
     - name: cormoran
       url-base: https://github.com/cormoran
+    - name: mjmjm0101
+      url-base: https://github.com/mjmjm0101
   projects:
 #    - name: zmk
 #      remote: zmkfirmware
@@ -42,5 +44,8 @@ manifest:
       remote: cormoran
       revision: main
       path: src/battery_history
+    - name: zmk-input-processor-scroll-inertia
+      remote: mjmjm0101
+      revision: main
   self:
     path: config

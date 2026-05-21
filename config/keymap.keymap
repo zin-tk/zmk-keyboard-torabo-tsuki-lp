@@ -36,7 +36,7 @@
 #define LT_FN 4
 #define LT_SCR 5
 #define LT_NUM 6
-#define LT_SP 7
+#define LT_BT 7
 
 / {
     combos {
@@ -61,7 +61,7 @@
         };
 
         scroll {
-            bindings = <&mo LT_SCR>;
+            bindings = <&lt_mkp LT_SCR MCLK>;
             key-positions = <28 17>;
             layers = <0 1>;
         };
@@ -78,8 +78,20 @@
             layers = <0 1>;
         };
 
+        key_tab {
+            bindings = <&kp TAB>;
+            key-positions = <10 11>;
+            layers = <0 1>;
+        };
+
+        key_MINUS {
+            bindings = <&kp MINUS>;
+            key-positions = <8 9>;
+            layers = <0 1>;
+        };
+
         bt {
-            bindings = <&mo LT_SP>;
+            bindings = <&mo LT_BT>;
             key-positions = <36 39>;
             layers = <0 1>;
         };
@@ -104,10 +116,20 @@
             compatible = "zmk,behavior-hold-tap";
             #binding-cells = <2>;
             flavor = "balanced";
-            tapping-term-ms = <200>;
+            tapping-term-ms = <280>;
             bindings = <&kp>, <&kp>;
 
             display-name = "Mod-Tap";
+        };
+
+        lt_mkp: mod_tap_mouse {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            flavor = "balanced";
+            tapping-term-ms = <280>;
+            bindings = <&mo>, <&mkp>;
+
+            display-name = "Mod-Tap-Mouse-Layer";
         };
     };
 
@@ -157,55 +179,55 @@
 
         layer_mac {
             bindings = <
-&none  &none          &none     &none     &none             &none                                   &none            &none  &none      &none     &none             &none
-&none  &kp Q          &kp W     &kp E     &kp R             &kp T                                   &kp Y            &kp U  &kp I      &kp O     &kp P             &none
-&none  &mt1 LCTRL A   &kp S     &kp D     &kp F             &mt1 RCTRL G      &none      &none      &mt1 LCTRL H     &kp J  &kp K      &kp L     &mt1 RCTRL SEMI   &none
-&none  &mt1 LSHIFT Z  &kp X     &kp C     &kp V             &kp B             &kp DEL    &kp BSPC   &mt1 LSHIFT N    &kp M  &kp COMMA  &kp DOT   &mt1 RSHIFT FSLH  &none
-&none  &kp TAB        &kp LGUI  &kp LALT  &lt LT_NUM LANG2  &lt LT_SYM LANG1  &kp RSHFT  &kp SPACE  &lt LT_FN ENTER  &none  &none      &kp RGUI  &mo 2             &none
+&none  &none          &none     &none     &none             &none                                      &none            &none  &none      &none     &none             &none
+&none  &kp Q          &kp W     &kp E     &kp R             &kp T                                      &kp Y            &kp U  &kp I      &kp O     &kp P             &none
+&none  &mt1 LCTRL A   &kp S     &kp D     &kp F             &mt1 RCTRL G  &none             &none      &mt1 LCTRL H     &kp J  &kp K      &kp L     &mt1 RCTRL SEMI   &none
+&none  &mt1 LSHIFT Z  &kp X     &kp C     &kp V             &kp B         &kp DEL           &kp BSPC   &mt1 LSHIFT N    &kp M  &kp COMMA  &kp DOT   &mt1 RSHIFT FSLH  &none
+&none  &kp TAB        &kp LGUI  &kp LALT  &lt LT_NUM LANG2  &mo LT_SYM    &mt1 LANG1 RSHFT  &kp SPACE  &lt LT_FN ENTER  &none  &none      &kp RGUI  &kp ESC           &none
             >;
         };
 
         layer_win {
             bindings = <
-&none  &none   &none   &none   &none            &none                            &none   &none   &none   &none   &none   &none
-&none  &trans  &trans  &trans  &trans           &trans                           &trans  &trans  &trans  &trans  &trans  &none
-&none  &trans  &trans  &trans  &trans           &trans           &none   &none   &trans  &trans  &trans  &trans  &trans  &none
-&none  &trans  &trans  &trans  &trans           &trans           &trans  &trans  &trans  &trans  &trans  &trans  &trans  &none
-&none  &trans  &trans  &trans  &lt LT_NUM INT5  &lt LT_SYM INT4  &trans  &trans  &trans  &none   &none   &trans  &trans  &none
+&none  &none   &none   &none   &none            &none                                       &none   &none   &none   &none   &none   &none
+&none  &trans  &trans  &trans  &trans           &trans                                      &trans  &trans  &trans  &trans  &trans  &none
+&none  &trans  &trans  &trans  &trans           &trans      &none                   &none   &trans  &trans  &trans  &trans  &trans  &none
+&none  &trans  &trans  &trans  &trans           &trans      &trans                  &trans  &trans  &trans  &trans  &trans  &trans  &none
+&none  &trans  &trans  &trans  &lt LT_NUM INT5  &mo LT_SYM  &mt1 RSHIFT INT_HENKAN  &trans  &trans  &none   &none   &trans  &trans  &none
             >;
         };
 
-        layer_1 {
+        layer_mouse {
             bindings = <
-&none  &none   &none      &none      &none      &none                   &none   &none      &none      &none      &none   &none
-&none  &trans  &trans     &trans     &trans     &trans                  &trans  &trans     &trans     &trans     &trans  &none
-&none  &trans  &mkp RCLK  &mkp MCLK  &mkp LCLK  &trans  &none   &none   &trans  &mkp LCLK  &mkp MCLK  &mkp RCLK  &trans  &none
-&none  &trans  &trans     &trans     &trans     &trans  &trans  &trans  &trans  &mkp LCLK  &mo 5      &trans     &trans  &none
-&none  &trans  &trans     &trans     &trans     &trans  &trans  &trans  &trans  &none      &none      &trans     &trans  &none
+&none  &none   &none      &none      &none      &none                   &none   &none                &none      &none      &none   &none
+&none  &trans  &trans     &trans     &trans     &trans                  &trans  &trans               &trans     &trans     &trans  &none
+&none  &trans  &mkp RCLK  &mkp MCLK  &mkp LCLK  &trans  &none   &none   &trans  &mkp LCLK            &mkp MCLK  &mkp RCLK  &trans  &none
+&none  &trans  &trans     &trans     &trans     &trans  &trans  &trans  &trans  &lt_mkp LT_SCR MCLK  &mo 5      &trans     &trans  &none
+&none  &trans  &trans     &trans     &trans     &trans  &trans  &trans  &trans  &none                &none      &trans     &trans  &none
             >;
         };
 
-        layer_2 {
+        layer_symbol {
             bindings = <
-&none   &none           &none       &none       &none            &none                       &none          &none          &none             &none       &none      &none
-&trans  &kp LS(N1)      &kp LS(N2)  &kp LS(N3)  &kp LS(N4)       &kp LS(N5)                  &kp LS(N6)     &kp LS(N7)     &kp LS(N8)        &kp LS(N9)  &kp MINUS  &none
-&trans  &kp N1          &kp N2      &kp N3      &kp N4           &kp N5      &none   &none   &kp N6         &kp N7         &kp N8            &kp N9      &kp N0     &none
-&trans  &kp LEFT_BRACE  &kp MINUS   &kp EQUAL   &kp RIGHT_BRACE  &kp COLON   &trans  &trans  &kp LS(MINUS)  &kp LS(EQUAL)  &kp LEFT_BRACKET  &kp AT      &kp COLON  &none
-&trans  &trans          &trans      &trans      &trans           &trans      &trans  &trans  &kp TAB        &kp DEL        &trans            &trans      &trans     &none
+&none   &none                   &none       &none       &none            &none                              &none                  &none          &none             &none       &none               &none
+&trans  &kp LS(N1)              &kp LS(N2)  &kp LS(N3)  &kp LS(N4)       &kp LS(N5)                         &kp LS(N6)             &kp LS(N7)     &kp LS(N8)        &kp LS(N9)  &kp MINUS           &none
+&trans  &mt1 LCTRL N1           &kp N2      &kp N3      &kp N4           &mt1 RCTRL N5      &none   &none   &mt1 LCTRL N6          &kp N7         &kp N8            &kp N9      &mt1 RCTRL N0       &none
+&trans  &mt1 LSHIFT LEFT_BRACE  &kp MINUS   &kp EQUAL   &kp RIGHT_BRACE  &mt1 RSHIFT COLON  &trans  &trans  &mt1 LSHIFT LS(MINUS)  &kp LS(EQUAL)  &kp LEFT_BRACKET  &kp JP_AT   &mt1 RSHIFT JP_YEN  &none
+&trans  &trans                  &trans      &trans      &trans           &trans             &trans  &trans  &kp TAB                &kp DEL        &trans            &trans      &trans              &none
             >;
         };
 
         layer_3 {
             bindings = <
-&none  &none      &none    &none      &none       &none                    &none             &none     &none      &none      &none              &none
-&none  &kp F1     &kp F2   &kp F3     &kp F4      &kp F5                   &kp PG_UP         &kp HOME  &kp UP     &kp END    &kp ESCAPE         &none
-&none  &kp LG(A)  &kp F7   &kp F8     &kp F9      &kp F10  &none   &none   &kp PG_DN         &kp LEFT  &kp DOWN   &kp RIGHT  &kp TAB            &none
-&none  &kp LG(Z)  &kp F12  &kp LG(C)  &kp LG(V)   &trans   &trans  &trans  &kp SINGLE_QUOTE  &kp DQT   &kp GRAVE  &kp TILDE  &kp JP_UNDERSCORE  &none
-&none  &trans     &trans   &trans     &kp DELETE  &kp TAB  &trans  &trans  &trans            &none     &none      &trans     &trans             &none
+&none  &none                 &none   &none       &none       &none                                   &none              &none     &none     &none      &none                      &none
+&none  &kp KP_MINUS          &kp N7  &kp N8      &kp N9      &kp KP_DIVIDE                           &kp PG_UP          &kp HOME  &kp UP    &kp END    &kp MINUS                  &none
+&none  &mt1 LCTRL KP_PLUS    &kp N4  &kp N5      &kp N6      &mt1 RCTRL KP_MULTIPLY  &none   &none   &mt1 LCTRL PG_DN   &kp LEFT  &kp DOWN  &kp RIGHT  &mt1 LCTRL SINGLE_QUOTE    &none
+&none  &mt1 LSHIFT KP_EQUAL  &kp N1  &kp N2      &kp N3      &mt RSHIFT KP_ENTER     &trans  &trans  &mt1 LSHIFT PG_DN  &mkp MB4  &mkp MB3  &mkp MB5   &mt1 LSHIFT JP_UNDERSCORE  &none
+&none  &trans                &kp N0  &kp KP_DOT  &kp DELETE  &kp TAB                 &trans  &trans  &trans             &none     &none     &trans     &trans                     &none
             >;
         };
 
-        layer_4 {
+        layer_scroll {
             bindings = <
 &none  &none   &none   &none   &none   &none                   &none   &none   &none   &none   &none   &none
 &none  &trans  &trans  &trans  &trans  &trans                  &trans  &trans  &trans  &trans  &trans  &none
@@ -215,23 +237,33 @@
             >;
         };
 
-        layer_5 {
+        layer_function {
             bindings = <
-&none  &none      &none   &none      &none      &none                 &none   &none   &none            &none            &none    &none
-&none  &kp F1     &kp F2  &kp F3     &kp F4     &kp F5                &kp F6  &kp F7  &kp F8           &kp F9           &kp F10  &none
-&none  &kp LG(A)  &none   &none      &none      &none   &none  &none  &none   &none   &kp JP_LBRACKET  &kp JP_RBRACKET  &kp F11  &none
-&none  &kp LG(Z)  &none   &kp LG(C)  &kp LG(V)  &none   &none  &none  &none   &none   &kp JP_LBRACE    &kp JP_RBRACE    &trans   &none
-&none  &trans     &none   &none      &none      &none   &none  &none  &none   &none   &none            &none            &none    &none
+&none  &none              &none   &none      &none      &none                     &none       &none   &none            &none            &none            &none
+&none  &kp F1             &kp F2  &kp F3     &kp F4     &kp F5                    &kp F6      &kp F7  &kp F8           &kp F9           &kp F10          &none
+&none  &mt1 LCTRL LG(A)   &none   &none      &none      &kp RCTRL   &none  &none  &kp LCTRL   &none   &kp JP_LBRACKET  &kp JP_RBRACKET  &mt1 RCTRL F11   &none
+&none  &mt1 LSHIFT LG(Z)  &none   &kp LG(C)  &kp LG(V)  &kp RSHIFT  &none  &none  &kp LSHIFT  &none   &kp JP_LBRACE    &kp JP_RBRACE    &mt1 RSHIFT F12  &none
+&none  &trans             &none   &none      &none      &none       &none  &none  &none       &none   &none            &none            &none            &none
             >;
         };
 
-        layer_6 {
+        layer_BT {
             bindings = <
 &none  &none  &none  &none         &none  &none                            &none  &none  &none  &none  &none  &none
 &none  &none  &none  &out OUT_BLE  &bt0   &bt BT_SEL 0                     &none  &none  &none  &none  &none  &none
 &none  &none  &none  &out OUT_USB  &bt1   &bt BT_SEL 1  &none       &none  &none  &none  &none  &none  &none  &none
 &none  &none  &none  &none         &bt2   &bt BT_SEL 2  &bt BT_NXT  &none  &none  &none  &none  &none  &none  &none
 &none  &none  &none  &none         &none  &none         &none       &none  &none  &none  &none  &none  &none  &none
+            >;
+        };
+
+        layer_8 {
+            bindings = <
+&trans  &trans  &trans  &trans  &trans  &trans                  &trans  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans                  &trans  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
             >;
         };
     };
