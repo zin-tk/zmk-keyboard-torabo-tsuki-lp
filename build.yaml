@@ -12,6 +12,10 @@ include:
     snippet: studio-rpc-usb-uart
     artifact-name: left_peripheral
   - board: bmp_boost
+    shield: torabo_tsuki_lp_left
+    snippet: "studio-rpc-usb-uart input-encoder input-split-encoder"
+    artifact-name: torabo_tsuki_lp_left_encoder_peripheral
+  - board: bmp_boost
     shield: torabo_tsuki_lp_right
     snippet: "studio-rpc-usb-uart split-central input-trackball input-listener"
     artifact-name: right_central

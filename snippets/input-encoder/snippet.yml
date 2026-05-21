@@ -1,0 +1,4 @@
+name: input-encoder
+
+build:
+  EXTRA_DTC_OVERLAY_FILE: input-encoder.overlay
