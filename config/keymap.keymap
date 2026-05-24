@@ -80,8 +80,7 @@
 
         key_tab {
             bindings = <&kp TAB>;
-            key-positions = <10 11>;
-            layers = <0 1>;
+            key-positions = <1 2>;
         };
 
         key_MINUS {
