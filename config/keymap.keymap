@@ -221,7 +221,7 @@
 &none  &none                 &none              &none   &none   &none                           &none              &none     &none     &none      &none                      &none
 &none  &kp KP_MINUS          &kp KP_DIVIDE      &kp N7  &kp N8  &kp N9                          &kp PG_UP          &kp HOME  &kp UP    &kp END    &kp MINUS                  &none
 &none  &mt1 LCTRL KP_PLUS    &kp KP_MULTIPLY    &kp N4  &kp N5  &mt1 RCTRL N6   &none   &none   &mt1 LCTRL PG_DN   &kp LEFT  &kp DOWN  &kp RIGHT  &mt1 LCTRL SINGLE_QUOTE    &none
-&none  &mt1 LSHIFT KP_EQUAL  &kp KP_ENTER       &kp N1  &kp N2  &mt1 RSHIF N3   &trans  &trans  &mt1 LSHIFT PG_DN  &mkp MB4  &mkp MB3  &mkp MB5   &mt1 LSHIFT JP_UNDERSCORE  &none
+&none  &mt1 LSHIFT KP_EQUAL  &kp KP_ENTER       &kp N1  &kp N2  &mt1 RSHIFT N3  &trans  &trans  &mt1 LSHIFT PG_DN  &mkp MB4  &mkp MB3  &mkp MB5   &mt1 LSHIFT JP_UNDERSCORE  &none
 &none  &trans                &kp KP_DOT         &kp N0  &trans  &trans          &trans  &trans  &trans             &none     &none     &trans     &trans                     &none
             >;
         };
