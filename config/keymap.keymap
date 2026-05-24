@@ -209,21 +209,21 @@
 
         layer_symbol {
             bindings = <
-&none   &none                   &none       &none       &none            &none                              &none                  &none          &none             &none       &none               &none
-&trans  &kp LS(N1)              &kp LS(N2)  &kp LS(N3)  &kp LS(N4)       &kp LS(N5)                         &kp LS(N6)             &kp LS(N7)     &kp LS(N8)        &kp LS(N9)  &kp MINUS           &none
-&trans  &mt1 LCTRL N1           &kp N2      &kp N3      &kp N4           &mt1 RCTRL N5      &none   &none   &mt1 LCTRL N6          &kp N7         &kp N8            &kp N9      &mt1 RCTRL N0       &none
-&trans  &mt1 LSHIFT LEFT_BRACE  &kp MINUS   &kp EQUAL   &kp RIGHT_BRACE  &mt1 RSHIFT COLON  &trans  &trans  &mt1 LSHIFT LS(MINUS)  &kp LS(EQUAL)  &kp LEFT_BRACKET  &kp JP_AT   &mt1 RSHIFT JP_YEN  &none
-&trans  &trans                  &trans      &trans      &trans           &trans             &trans  &trans  &kp TAB                &kp DEL        &trans            &trans      &trans              &none
+&none   &none                       &none       &none       &none            &none                                  &none                   &none           &none       &none       &none               &none
+&trans  &kp LS(N1)                  &kp LS(N2)  &kp LS(N3)  &kp LS(N4)       &kp LS(N5)                             &kp LS(N6)              &kp LS(N7)      &kp LS(N8)  &kp LS(N9)  &kp MINUS           &none
+&trans  &mt1 LCTRL N1               &kp N2      &kp N3      &kp N4           &mt1 RCTRL N5          &none   &none   &mt1 LCTRL N6           &kp N7          &kp N8      &kp N9      &mt1 RCTRL N0       &none
+&trans  &mt1 LSHIFT JP_BACKQUOTE    &kp MINUS   &kp EQUAL   &kp RIGHT_BRACE  &mt1 RSHIFT JP_EQUAL   &trans  &trans  &mt1 LSHIFT JP_CARET    &kp JP_TILDE    &kp JP_PIPE &kp JP_AT   &mt1 RSHIFT JP_YEN  &none
+&trans  &trans                      &trans      &trans      &trans           &trans                 &trans  &trans  &trans                  &trans          &trans      &trans      &trans              &none
             >;
         };
 
         layer_3 {
             bindings = <
-&none  &none                 &none   &none       &none       &none                                   &none              &none     &none     &none      &none                      &none
-&none  &kp KP_MINUS          &kp N7  &kp N8      &kp N9      &kp KP_DIVIDE                           &kp PG_UP          &kp HOME  &kp UP    &kp END    &kp MINUS                  &none
-&none  &mt1 LCTRL KP_PLUS    &kp N4  &kp N5      &kp N6      &mt1 RCTRL KP_MULTIPLY  &none   &none   &mt1 LCTRL PG_DN   &kp LEFT  &kp DOWN  &kp RIGHT  &mt1 LCTRL SINGLE_QUOTE    &none
-&none  &mt1 LSHIFT KP_EQUAL  &kp N1  &kp N2      &kp N3      &mt RSHIFT KP_ENTER     &trans  &trans  &mt1 LSHIFT PG_DN  &mkp MB4  &mkp MB3  &mkp MB5   &mt1 LSHIFT JP_UNDERSCORE  &none
-&none  &trans                &kp N0  &kp KP_DOT  &kp DELETE  &kp TAB                 &trans  &trans  &trans             &none     &none     &trans     &trans                     &none
+&none  &none                 &none              &none   &none   &none                           &none              &none     &none     &none      &none                      &none
+&none  &kp KP_MINUS          &kp KP_DIVIDE      &kp N7  &kp N8  &kp N9                          &kp PG_UP          &kp HOME  &kp UP    &kp END    &kp MINUS                  &none
+&none  &mt1 LCTRL KP_PLUS    &kp KP_MULTIPLY    &kp N4  &kp N5  &mt1 RCTRL N6   &none   &none   &mt1 LCTRL PG_DN   &kp LEFT  &kp DOWN  &kp RIGHT  &mt1 LCTRL SINGLE_QUOTE    &none
+&none  &mt1 LSHIFT KP_EQUAL  &kp KP_ENTER       &kp N1  &kp N2  &mt1 RSHIF N3   &trans  &trans  &mt1 LSHIFT PG_DN  &mkp MB4  &mkp MB3  &mkp MB5   &mt1 LSHIFT JP_UNDERSCORE  &none
+&none  &trans                &kp KP_DOT         &kp N0  &trans  &trans          &trans  &trans  &trans             &none     &none     &trans     &trans                     &none
             >;
         };
 
