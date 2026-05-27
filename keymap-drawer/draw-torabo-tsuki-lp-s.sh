@@ -95,6 +95,16 @@ with out_path.open('w') as out:
         out.write(f'  {layer}:\n')
         for i in ordered_indices:
             out.write(f'  - {values[i]}\n')
+    # Copy combos block from the parsed original YAML (if present).
+    # The original combos are specified with S-layout key numbers, so we can
+    # include them verbatim in the S output.
+    combos_pos = parsed.find('\ncombos:')
+    if combos_pos != -1:
+        combos_block = parsed[combos_pos+1:]
+        # Ensure the combos block starts with 'combos:' at line start
+        if combos_block.strip():
+            out.write('\n')
+            out.write(combos_block)
 PY
 
 keymap draw -j "$REPO_ROOT/keymap-drawer/torabo-tsuki-lp-s.json" -l LAYOUT_S "$REPO_ROOT/keymap-drawer/torabo-tsuki-lp-s.yaml" > "$REPO_ROOT/keymap-drawer/torabo-tsuki-lp-s.svg"

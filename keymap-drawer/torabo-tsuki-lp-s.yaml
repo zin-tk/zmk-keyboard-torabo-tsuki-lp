@@ -405,3 +405,31 @@ layers:
   - {t: ▽, type: trans}
   - {t: ▽, type: trans}
   - {t: ▽, type: trans}
+
+combos:
+- p: [28, 29]
+  k: BT CLR
+  l: [mouse]
+- p: [28, 29]
+  k: '&mkp LCLK'
+  l: [mac, win]
+- p: [17, 18]
+  k: '&mkp RCLK'
+  l: [mac, win]
+- p: [28, 17]
+  k: {t: '&mkp MCLK', h: scroll}
+  l: [mac, win]
+- p: [29, 30]
+  k: '&mkp MCLK'
+  l: [mac, win]
+- p: [0, 1]
+  k: ESC
+  l: [mac, win]
+- p: [1, 2]
+  k: TAB
+- p: [8, 9]
+  k: '-'
+  l: [mac, win]
+- p: [36, 39]
+  k: BT
+  l: [mac, win]
