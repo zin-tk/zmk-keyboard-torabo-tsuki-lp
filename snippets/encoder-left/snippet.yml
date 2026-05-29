@@ -1,4 +1,4 @@
 name: encoder-left
 append:
-  EXTRA_DTC_OVERLAY_FILE: encoder.overlay disable-spi-i2c.overlay
+  EXTRA_DTC_OVERLAY_FILE: encoder.overlay
   EXTRA_CONF_FILE: encoder.conf

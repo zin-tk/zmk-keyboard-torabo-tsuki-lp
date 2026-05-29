@@ -1,3 +1,12 @@
+// Disable SPI0/I2C0 on left peripheral to free GPIO0.18/16 for encoder
+&spi0 {
+    status = "disabled";
+};
+
+&i2c0 {
+    status = "disabled";
+};
+
 / {
     encoder: encoder {
         compatible = "alps,ec11";
