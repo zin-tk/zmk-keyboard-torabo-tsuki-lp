@@ -1,8 +1,4 @@
-id: encoder-left
-name: Encoder Left
-description: Rotary encoder configuration for left (peripheral) side
-
-files:
-  - encoder.overlay
-  - disable-spi-i2c.overlay
-  - encoder.conf
+name: encoder-left
+append:
+  EXTRA_DTC_OVERLAY_FILE: encoder.overlay disable-spi-i2c.overlay
+  EXTRA_CONF_FILE: encoder.conf
