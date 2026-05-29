@@ -156,6 +156,13 @@
 
             display-name = "Layer-Tap";
         };
+
+        encoder_kp: sensor_rotate_kp {
+            compatible = "zmk,behavior-sensor-rotate-var";
+            #sensor-binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+            display-name = "Encoder Key Press";
+        };
     };
 
     macros {
@@ -210,6 +217,7 @@
 &none  &mt_z LSHIFT Z  &kp X     &kp C     &kp V             &kp B         &kp DEL           &kp BSPC   &mt1 LSHIFT N    &kp M  &kp COMMA  &kp DOT   &mt1 RSHIFT FSLH  &none
 &none  &kp TAB        &kp LGUI  &kp LALT  &lt LT_NUM LANG2  &mo LT_SYM    &mt1 RSHFT LANG1  &kp SPACE  &lt1 LT_FN ENTER  &none  &none      &kp RGUI  &kp ESC           &none
             >;
+            sensor-bindings = <&encoder_kp A B>;
         };
 
         layer_win {
