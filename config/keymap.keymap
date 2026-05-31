@@ -52,24 +52,28 @@
             bindings = <&mkp LCLK>;
             key-positions = <28 29>;
             layers = <0 1>;
+            require-prior-idle-ms = <200>;
         };
 
         mouse_R {
             bindings = <&mkp RCLK>;
             key-positions = <17 18>;
             layers = <0 1>;
+            require-prior-idle-ms = <200>;
         };
 
         scroll {
             bindings = <&lt_mkp LT_SCR MCLK>;
             key-positions = <28 17>;
             layers = <0 1>;
+            require-prior-idle-ms = <200>;
         };
 
         mouse_M {
             bindings = <&mkp MCLK>;
             key-positions = <29 30>;
             layers = <0 1>;
+            require-prior-idle-ms = <200>;
         };
 
         key_esc {
@@ -131,6 +135,16 @@
 
             display-name = "Mod-Tap-Mouse-Layer";
         };
+
+        lt1: layer_tap {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            flavor = "hold-preferred";
+            tapping-term-ms = <200>;
+            bindings = <&mo>, <&kp>;
+
+            display-name = "Layer-Tap";
+        };
     };
 
     macros {
@@ -183,7 +197,7 @@
 &none  &kp Q          &kp W     &kp E     &kp R             &kp T                                      &kp Y            &kp U  &kp I      &kp O     &kp P             &none
 &none  &mt1 LCTRL A   &kp S     &kp D     &kp F             &mt1 RCTRL G  &none             &none      &mt1 LCTRL H     &kp J  &kp K      &kp L     &mt1 RCTRL SEMI   &none
 &none  &mt1 LSHIFT Z  &kp X     &kp C     &kp V             &kp B         &kp DEL           &kp BSPC   &mt1 LSHIFT N    &kp M  &kp COMMA  &kp DOT   &mt1 RSHIFT FSLH  &none
-&none  &kp TAB        &kp LGUI  &kp LALT  &lt LT_NUM LANG2  &mo LT_SYM    &mt1 RSHFT LANG1  &kp SPACE  &lt LT_FN ENTER  &none  &none      &kp RGUI  &kp ESC           &none
+&none  &kp TAB        &kp LGUI  &kp LALT  &lt LT_NUM LANG2  &mo LT_SYM    &mt1 RSHFT LANG1  &kp SPACE  &lt1 LT_FN ENTER  &none  &none      &kp RGUI  &kp ESC           &none
             >;
         };
 
