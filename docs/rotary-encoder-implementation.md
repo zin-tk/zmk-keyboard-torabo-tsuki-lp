@@ -574,8 +574,24 @@ Peripheral側では標準ZMKの`keymap-sensors`フレームワークを使用し
   つまり、エンコーダハードウェアが左側（Peripheral）にしかなくても、**Central側のデバイスツリーに `zmk,keymap-sensors` ノードが必要**。
 
 - **現状の問題**: `right_central` ビルドにはエンコーダ関連のスニペットが含まれておらず、Central側に `zmk,keymap-sensors` ノードが存在しないため、エンコーダ入力が完全に無視されている。
-- **必要な対応**: Central側ビルドに `zmk,keymap-sensors` ノードを定義するスニペットを追加する。
-- **リスク**: 中（Central側にエンコーダハードウェアが存在しないため、プレースホルダーセンサーノードの定義方法を検討する必要あり）
+- **対応方針**: スニペットを以下の構成に整理する。
+
+  ```
+  snippets/encoder/          ← 共通（新規）
+    encoder.overlay          - EC11プレースホルダー(status=disabled) + zmk,keymap-sensors
+    encoder.conf             - CONFIG_EC11, CONFIG_SENSOR, CONFIG_EC11_TRIGGER_GLOBAL_THREAD
+    snippet.yml
+
+  snippets/encoder-left/     ← Peripheral追加分のみ（既存を整理）
+    encoder-left.overlay     - &encoderを実GPIOで上書き(status=okay) + SPI0/I2C0無効化
+    snippet.yml              ※ .conf は encoder 共通側に移動するため不要
+  ```
+
+  ビルド構成：
+  - `left_peripheral_encoder`: `snippet: "... encoder encoder-left"`
+  - `right_central_encoder`:   `snippet: "... encoder"`
+
+- **リスク**: 低
 
 ### 課題B: ハードウェア・GPIO割り当て
 - **状態**: ✅ 確定 - LiSMエンコーダ基板ピンアサイン確認
@@ -592,10 +608,11 @@ Peripheral側では標準ZMKの`keymap-sensors`フレームワークを使用し
 - **リスク**: 低（左側と右側が独立）
 
 ### 課題D: ビルドプロファイル
-- **状態**: 部分確認
-- **詳細**: `build.yaml`の`left_peripheral`を拡張して`encoder-left`スニペット適用
-- **必要な作業**: スニペット作成、build.yamlに新しい構成追加
-- **リスク**: 低（既存プロファイルが参考になる）
+- **状態**: 🟡 要更新
+- **詳細**: スニペット構成整理に伴い `build.yaml` も更新が必要
+  - `left_peripheral_encoder`: `encoder encoder-left` の2スニペット指定
+  - `right_central_encoder` を新規追加: `encoder` スニペットのみ
+- **リスク**: 低
 
 ---
 
@@ -616,27 +633,24 @@ Peripheral側では標準ZMKの`keymap-sensors`フレームワークを使用し
 
 ### 優先度順実行タスク
 
-**今すぐ実行（フェーズ2-3: DTS/CONFIG/キーマップ実装）**:
+**実装タスク（課題A対応）**:
 
-1. **スニペット構成の作成**（1-2日）
-   - [ ] `snippets/encoder-left/` ディレクトリ作成
-   - [ ] `encoder.overlay` - エンコーダDTS定義
-   - [ ] `disable-spi-i2c.overlay` - SPI0/I2C0無効化
-   - [ ] `encoder.conf` - CONFIG_EC11等設定
-   - [ ] `snippet.yml` - スニペット定義
+1. **スニペット構成の整理**
+   - [ ] `snippets/encoder/` 新規作成（共通）
+     - `encoder.overlay`: EC11プレースホルダー(status=disabled) + `zmk,keymap-sensors`
+     - `encoder.conf`: CONFIG_EC11, CONFIG_SENSOR, CONFIG_EC11_TRIGGER_GLOBAL_THREAD
+     - `snippet.yml`
+   - [ ] `snippets/encoder-left/` を整理（Peripheral追加分のみに変更）
+     - `encoder-left.overlay`: `&encoder` を実GPIO(status=okay)で上書き + SPI0/I2C0無効化
+     - `snippet.yml` のみ（`.conf` は `encoder` 共通側に移動）
+     - 既存 `encoder.conf` は削除
 
-2. **build.yaml拡張**（1日）
-   - [ ] 左側エンコーダPeripheral構成追加
-   - [ ] 既存`left_peripheral`プロファイルとの整合確認
+2. **`build.yaml` 更新**
+   - [ ] `left_peripheral_encoder`: snippet を `"... encoder encoder-left"` に変更
+   - [ ] `right_central_encoder` を新規追加: `"... split-central input-trackball input-listener encoder"`
 
-3. **キーマップ統合**（1-2日）
-   - [ ] `config/keymap.keymap`へ`&encoder`, `&sensors`ブロック追加
-   - [ ] `sensor_rotate_kp`ビヘイビア定義
-   - [ ] `sensor-bindings = <&encoder_kp A B>`追加
-
-4. **コンパイル/ビルド検証**（1日）
-   - [ ] `make` でビルド実行
-   - [ ] DTS/CONFIG エラー確認
+3. **コンパイル/ビルド検証**
+   - [ ] GitHub Actions でビルドエラーがないことを確認
 
 ### 実装フェーズの検証ゲート
 
@@ -691,5 +705,5 @@ FCC端子ピン  →  信号         →  左側GPIO
 
 **ドキュメント作成**: 2026-05-27  
 **最終更新**: 2026-06-01  
-**ステータス**: 🟡 動作不良調査中 - Central側 `zmk,keymap-sensors` ノード未実装が根本原因と特定  
-**次アクション**: Central側ビルドへの `zmk,keymap-sensors` ノード追加方法を検討・実装
+**ステータス**: 🟡 修正方針確定 - スニペット構成整理による `zmk,keymap-sensors` 追加  
+**次アクション**: `snippets/encoder/` 新規作成、`encoder-left` 整理、`build.yaml` 更新
