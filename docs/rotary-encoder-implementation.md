@@ -558,10 +558,24 @@ Peripheral側では標準ZMKの`keymap-sensors`フレームワークを使用し
 ## 5. 技術的な未解決課題（ブロッカー）
 
 ### 課題A: Peripheralセンサー送信メカニズム
-- **状態**: ✅ 確認済み - ZMK標準機能で実装可能
-- **詳細**: Peripheral側で`sensor-rotate-var`ビヘイビアでキー入力に変換可能。Split通信では通常のキーイベントとして送信。
-- **実装方式**: Peripheralの`keymap-sensors`ブロックで定義、キーイベント化して送信
-- **リスク**: 低
+- **状態**: ⚠️ 要修正 - Central側に `zmk,keymap-sensors` ノードが必要
+- **詳細**: ZMKソース（`cormoran/zmk` `v0.3-branch+custom-studio-protocol+ble`）を調査した結果、以下が判明。
+
+  `app/include/zmk/sensors.h` の定義：
+  ```c
+  #define ZMK_KEYMAP_SENSORS_NODE DT_INST(0, zmk_keymap_sensors)
+  #define ZMK_KEYMAP_HAS_SENSORS DT_NODE_HAS_STATUS(ZMK_KEYMAP_SENSORS_NODE, okay)
+  ```
+
+  `app/src/split/bluetooth/central.c` の `split_central_sensor_notify_func` は `#if ZMK_KEYMAP_HAS_SENSORS` で囲まれており、Central側に `zmk,keymap-sensors` ノード（`status = "okay"`）が存在しない場合：
+  1. Central は Peripheral からのセンサー GATT 通知への **BLE購読自体を行わない**
+  2. `app/src/keymap.c` の `ZMK_SUBSCRIPTION(keymap, zmk_sensor_event)` も無効化され、keymap の `sensor-bindings` が処理されない
+
+  つまり、エンコーダハードウェアが左側（Peripheral）にしかなくても、**Central側のデバイスツリーに `zmk,keymap-sensors` ノードが必要**。
+
+- **現状の問題**: `right_central` ビルドにはエンコーダ関連のスニペットが含まれておらず、Central側に `zmk,keymap-sensors` ノードが存在しないため、エンコーダ入力が完全に無視されている。
+- **必要な対応**: Central側ビルドに `zmk,keymap-sensors` ノードを定義するスニペットを追加する。
+- **リスク**: 中（Central側にエンコーダハードウェアが存在しないため、プレースホルダーセンサーノードの定義方法を検討する必要あり）
 
 ### 課題B: ハードウェア・GPIO割り当て
 - **状態**: ✅ 確定 - LiSMエンコーダ基板ピンアサイン確認
@@ -589,7 +603,7 @@ Peripheral側では標準ZMKの`keymap-sensors`フレームワークを使用し
 
 | リスク | 確度 | 重大度 | 状態 | 緩和策 |
 |-------|------|-------|------|-------|
-| Peripheral側センサー送信が標準機能ではない | ⚠️ 高 | 🔴 致命的 | ✅ 解決 | ZMK標準の`sensor-rotate-var`で実装可能 |
+| Peripheral側センサー送信が標準機能ではない | ⚠️ 高 | 🔴 致命的 | ⚠️ 要修正 | ZMKソース確認の結果、Central側にも`zmk,keymap-sensors`ノードが必要（課題A参照） |
 | ピンアサイン誤認定 | ⚠️ 高 | 🟡 重大 | ✅ 解決 | LiSMエンコーダ基板ピン3/4 = GPIO0.18/16確定 |
 | 既存トラックボール処理との競合 | ⚠️ 中 | 🟡 重大 | ✅ 解決 | 左側専用化により右側に影響なし |
 | west.yml依存関係エラー | ⚠️ 中 | 🟡 重大 | 🟡 検証待ち | スニペット作成時に段階的ビルド検証 |
@@ -676,6 +690,6 @@ FCC端子ピン  →  信号         →  左側GPIO
 ---
 
 **ドキュメント作成**: 2026-05-27  
-**最終更新**: 2026-05-28  
-**ステータス**: 🟢 技術検証完了 / 実装準備完了  
-**次アクション**: フェーズ2-3の実装スニペット・キーマップ作成に進む
+**最終更新**: 2026-06-01  
+**ステータス**: 🟡 動作不良調査中 - Central側 `zmk,keymap-sensors` ノード未実装が根本原因と特定  
+**次アクション**: Central側ビルドへの `zmk,keymap-sensors` ノード追加方法を検討・実装
