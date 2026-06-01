@@ -1,0 +1,15 @@
+// Override placeholder encoder with real hardware on left peripheral.
+// Frees GPIO0.18/16 from SPI0/I2C0 for EC11 use.
+&spi0 {
+    status = "disabled";
+};
+
+&i2c0 {
+    status = "disabled";
+};
+
+&encoder {
+    a-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+    b-gpios = <&gpio0 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+    status = "okay";
+};

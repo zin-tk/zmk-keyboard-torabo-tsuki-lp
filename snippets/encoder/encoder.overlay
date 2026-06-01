@@ -1,19 +1,13 @@
-// Disable SPI0/I2C0 on left peripheral to free GPIO0.18/16 for encoder
-&spi0 {
-    status = "disabled";
-};
-
-&i2c0 {
-    status = "disabled";
-};
-
+// Placeholder EC11 node — no hardware connected.
+// Required by zmk,keymap-sensors for DTS binding validation.
+// On Central, DEVICE_DT_GET_OR_NULL returns NULL and initialization is skipped.
 / {
     encoder: encoder {
         compatible = "alps,ec11";
         a-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
         b-gpios = <&gpio0 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
         steps = <12>;
-        status = "okay";
+        status = "disabled";
     };
 
     sensors: sensors {
