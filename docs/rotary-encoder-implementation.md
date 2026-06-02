@@ -693,6 +693,97 @@ FCC端子ピン  →  信号         →  左側GPIO
 
 ---
 
+## 10. スニペット整理実装後の問題調査
+
+### 現象
+
+実装後、以下のビルド組み合わせでハングアップが発生：
+
+| 組み合わせ | 状態 |
+|----------|------|
+| `left_peripheral_encoder` + `right_central_encoder` | 🔴 **ハング** |
+| `right_central_encoder` 単体 | ✅ 正常 |
+| `left_peripheral_encoder` 単体 | ✅ 正常（推定） |
+| `left_peripheral` + `right_central` | ✅ 正常 |
+
+**詳細**：`left_peripheral_encoder` が接続すると `right_central` 側（Central）が無応答になる
+
+### 調査結果
+
+#### 仮説1: GPIO 競合（❌ 否定）
+
+**根拠**：
+- ZMK センサー code（`sensors.c`）の `DEVICE_DT_GET_OR_NULL` は disabled ノードに対して NULL を返す
+- `zmk_sensors_init_item` は NULL デバイスを check で早期リターン → GPIO アクセスなし
+- Central の pinctrl（SPI0）と disabled EC11 node の GPIO 定義は compile-time での重複だが、実行時には SPI0 ドライバのみ使用
+
+**結論**：GPIO 競合は発生していない
+
+#### 仮説2: Keymap センサーバインディングの二重処理（❌ 否定）
+
+- LisM では同一キーマップを Peripheral/Central で区別せず使用（確認済み）
+- 他の分割キーボード ZMK FW でも同様の実装が標準（確認済み）
+- 二重処理が根本原因ではない
+
+---
+
+### 根本原因: `ZMK_KEYMAP_SENSORS_LEN = 0` による零長配列越境アクセス（✅ 特定済み）
+
+#### 証拠
+
+GitHub Actions ビルドログ（最新 enc ブランチ）の `right_central_encoder` ビルドに以下の警告が存在する：
+
+```
+/zmk/app/src/behaviors/behavior_sensor_rotate_common.c:32:56: warning:
+  array subscript 'sensor_index' is outside the bounds of an interior
+  zero-length array 'struct sensor_value[0][9]' [-Wzero-length-bounds]
+     struct sensor_value remainder[ZMK_KEYMAP_SENSORS_LEN][ZMK_KEYMAP_LAYERS_LEN];
+```
+
+- **`ZMK_KEYMAP_SENSORS_LEN = 0`**、`ZMK_KEYMAP_LAYERS_LEN = 9`（9レイヤー）
+- **同じ警告は `left_peripheral_encoder` ビルドには存在しない**（左側では `ZMK_KEYMAP_SENSORS_LEN = 1`）
+
+#### 原因メカニズム
+
+`sensors.h` より：
+```c
+#define ZMK_KEYMAP_SENSORS_LEN DT_PROP_LEN(ZMK_KEYMAP_SENSORS_NODE, sensors)
+```
+
+`sensors = <&encoder>` の `phandles` 型プロパティで参照先ノード (`encoder`) が `status = "disabled"` の場合、Zephyr の DT コンパイラが `_LEN = 0` を生成する。
+
+| ビルド | encoder node | ZMK_KEYMAP_SENSORS_LEN |
+|--------|-------------|----------------------|
+| `left_peripheral_encoder` | `status = "okay"`（encoder-left スニペットが上書き） | **1** |
+| `right_central_encoder` | `status = "disabled"`（placeholder のまま） | **0** |
+
+#### クラッシュループのフロー
+
+```
+[Peripheral]
+EC11回転 → raise_zmk_sensor_event() → BLE GATT通知送信
+                                             ↓
+[Central]
+split_central_sensor_notify_func() → raise_zmk_sensor_event()
+  → keymap.c sensor event listener
+    → zmk_behavior_sensor_rotate_common_accept_data()
+      → data->remainder[sensor_index][event.layer]
+           ↑
+      remainder は [0][9] 零長配列 → 範囲外メモリアクセス
+           ↓
+      nRF52840 HardFault → デバイスリセット
+           ↓
+      Peripheral 再接続 → センサーイベント再送 → 再クラッシュ
+           ↓
+      【クラッシュループ = 外側から"ハング"に見える】
+```
+
+#### `right_central_encoder` 単体が正常な理由
+
+Peripheral 未接続 → センサーイベントが届かない → クラッシュしない。ビルドは通るが実行時に踏む地雷が存在する状態。
+
+---
+
 ## 9. 参考資料
 
 - **ZMK RotaryEncoder**: https://zmk.dev/docs/features/encoders
