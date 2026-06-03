@@ -784,6 +784,44 @@ Peripheral 未接続 → センサーイベントが届かない → クラッ�
 
 ---
 
+### 対策（✅ 実施済み 2026-06-03）
+
+#### 方針
+
+ZMK の標準パターン（LisM 実装で確認）では、エンコーダのハードウェアが Peripheral 側にしかない場合でも、`ZMK_KEYMAP_SENSORS_LEN` を正しく設定するために **Central 側でもエンコーダノードを `status = "okay"` にする** 必要がある。
+
+Central 側で GPIO0.18/16 をそのまま有効化すると SPI0（トラックボール）と競合するため、BMP Boost 上で**意図的に未使用のピン**（P0.24/P0.25）を placeholder として使用する。EC11 ドライバはこれらを pull-up 入力として初期化するが、ピンは未接続で安定 High のため疑似イベントは発生しない。
+
+#### 変更内容: `snippets/encoder/encoder.overlay`
+
+```devicetree
+// 変更前
+encoder: encoder {
+    a-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+    b-gpios = <&gpio0 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+    status = "disabled";  // ← DT_PROP_LEN が 0 を返す原因
+};
+
+// 変更後
+// GPIO P0.24/P0.25 は BMP Boost の gpio-map に含まれない未接続ピンを意図的に使用
+encoder: encoder {
+    a-gpios = <&gpio0 24 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+    b-gpios = <&gpio0 25 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+    status = "okay";  // ZMK_KEYMAP_SENSORS_LEN = 1 になる
+};
+```
+
+`encoder-left.overlay` が Peripheral 側で GPIO0.18/16 に上書きするため、実機の動作は変わらない。
+
+#### 修正後の状態
+
+| ビルド | encoder GPIO | status | ZMK_KEYMAP_SENSORS_LEN |
+|--------|-------------|--------|----------------------|
+| `left_peripheral_encoder` | 0.18/16（encoder-left で上書き） | okay | **1** |
+| `right_central_encoder` | 0.24/25（未使用ピン・placeholder） | okay | **1** ✅（0 → 1）|
+
+---
+
 ## 9. 参考資料
 
 - **ZMK RotaryEncoder**: https://zmk.dev/docs/features/encoders
@@ -795,6 +833,6 @@ Peripheral 未接続 → センサーイベントが届かない → クラッ�
 ---
 
 **ドキュメント作成**: 2026-05-27  
-**最終更新**: 2026-06-01  
-**ステータス**: 🟡 修正方針確定 - スニペット構成整理による `zmk,keymap-sensors` 追加  
-**次アクション**: `snippets/encoder/` 新規作成、`encoder-left` 整理、`build.yaml` 更新
+**最終更新**: 2026-06-03  
+**ステータス**: 🟡 対策実施済み - `encoder.overlay` を `status = "okay"` + GPIO0.24/25 に変更  
+**次アクション**: GitHub Actions ビルドで `[0][9]` 警告消滅と動作確認
