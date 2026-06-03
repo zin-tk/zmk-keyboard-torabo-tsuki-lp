@@ -822,6 +822,133 @@ encoder: encoder {
 
 ---
 
+## 11. BLE ペアリング後のハング問題（継続調査中）
+
+### 現象
+
+`encoder.overlay` を `status = "okay"` + GPIO0.24/25 に修正後、ビルドは成功した。しかし実機テストで新たな問題が判明：
+
+| 組み合わせ | 状態 |
+|----------|------|
+| `left_peripheral` + `right_central_encoder` | ✅ 正常 |
+| `left_peripheral_encoder` + `right_central` | ✅ 正常 |
+| `left_peripheral_encoder` + `right_central_encoder` | 🔴 **BLE接続直後にハング** |
+
+エンコーダ回転前に、BLE ペアリング（GATT サービス購読）の段階でハングが発生する。
+
+---
+
+### 根本原因: `peripheral_slot` の `sub_discover_params` 共有による GATT CCC 発見処理の競合
+
+#### `peripheral_slot` 構造体（cormoran/zmk `central.c`）
+
+```c
+struct peripheral_slot {
+    ...
+    struct bt_gatt_subscribe_params subscribe_params;              // キーポジション
+    struct bt_gatt_subscribe_params sensor_subscribe_params;       // センサー
+    struct bt_gatt_subscribe_params relay_event_subscribe_params;  // リレーイベント
+    struct bt_gatt_discover_params  sub_discover_params;           // ← 全購読で共有
+    ...
+    struct bt_gatt_subscribe_params batt_lvl_subscribe_params;     // バッテリー
+};
+```
+
+**すべての GATT 購読が 1 つの `sub_discover_params` を共有している**。
+
+#### 競合メカニズム
+
+`CONFIG_BT_GATT_AUTO_DISCOVER_CCC=y`（設定済み）の場合、`ccc_handle = 0` の購読では `bt_gatt_subscribe` → `gatt_ccc_discover` が呼ばれる。
+
+`gatt_ccc_discover` は：
+1. `memset(disc_params, 0)` で disc_params を**ゼロクリア**
+2. CCC 検索用の情報を書き込んで ATT リクエスト送信
+
+4 つの購読（key / sensor / relay / battery）が連続して開始されると：
+
+```
+key subscription   → disc_params に key 用情報をセット → ATT request 送信
+sensor subscription → disc_params を上書き
+relay subscription  → disc_params を上書き
+battery subscription → disc_params を上書き（最終状態）
+```
+
+ATT layer はリクエストをキューイングし、応答が順番に届く。最初の ATT レスポンス（key CCC 検索結果）が届いたとき：
+
+- `disc_params` の内容は battery 用に書き換わっている
+- `gatt_ccc_discover_cb` が呼ばれ、内部で `memset(disc_params, 0)` を実行
+- `disc_params->func = NULL` になる
+
+以降のレスポンス（sensor / relay / battery CCC）が届いたとき：
+
+- `gatt_find_info_rsp` または `gatt_discover_next` が `params->func(conn, NULL, params)` を呼び出す
+- **`params->func = NULL` → NULL ポインタ呼び出し → HardFault → デバイスリセット → ペアリングループ**
+
+#### なぜ 3 購読では正常か
+
+| 組み合わせ | 実際の GATT 購読数 | 結果 |
+|----------|-----------------|------|
+| `left_peripheral` + `right_central_encoder` | key + relay + battery = **3** | ✅ センサーChar が Peripheral に存在しない → sensor 購読スキップ |
+| `left_peripheral_encoder` + `right_central` | key + relay + battery = **3** | ✅ Central が `ZMK_KEYMAP_HAS_SENSORS=0` → sensor 購読コード無効化 |
+| `left_peripheral_encoder` + `right_central_encoder` | key + **sensor** + relay + battery = **4** | 🔴 sensor 購読が追加され競合発生 |
+
+input-split 関連の購読（`input_slot`）は `ccc_handle` を直接設定する（`gatt_ccc_discover` を経由しない）ため、この問題に寄与しない。
+
+---
+
+### 修正方針
+
+**cormoran/zmk `app/src/split/bluetooth/central.c` の修正が必要**。
+
+`peripheral_slot` 構造体に sensor 用の独立した discover_params を追加する：
+
+```c
+// peripheral_slot 構造体に追加（1行）
+struct bt_gatt_discover_params sensor_sub_discover_params;
+```
+
+sensor 購読設定箇所で、共有 disc_params の代わりに専用 disc_params を使用：
+
+```c
+// 変更前
+slot->sensor_subscribe_params.disc_params = &slot->sub_discover_params;
+
+// 変更後
+slot->sensor_subscribe_params.disc_params = &slot->sensor_sub_discover_params;
+```
+
+この 2 行の変更により、sensor の CCC 発見処理が他の購読の disc_params を破壊しなくなる。
+
+---
+
+### 修正に必要な作業
+
+1. `cormoran/zmk` を自分の GitHub アカウントに fork する
+2. `app/src/split/bluetooth/central.c` に上記 2 行の変更を適用する
+3. `config/west.yml` の ZMK 参照先を fork したリポジトリに変更する：
+   ```yaml
+   # 変更前
+   - name: zmk
+     remote: cormoran
+     revision: v0.3-branch+custom-studio-protocol+ble
+   
+   # 変更後
+   - name: zmk
+     remote: <自分のGitHubユーザー名>
+     revision: v0.3-branch+custom-studio-protocol+ble+encoder-fix
+   ```
+
+---
+
+### 現在の状態
+
+- 🔴 **未修正** - cormoran/zmk fork の修正が必要
+- 修正ファイル: `cormoran/zmk` の `app/src/split/bluetooth/central.c`
+- 修正内容: `peripheral_slot` に `sensor_sub_discover_params` フィールド追加（2行変更）
+- 作業方法: cormoran/zmk を fork して修正を当てる
+
+---
+
 ## 9. 参考資料
 
 - **ZMK RotaryEncoder**: https://zmk.dev/docs/features/encoders
@@ -833,6 +960,6 @@ encoder: encoder {
 ---
 
 **ドキュメント作成**: 2026-05-27  
-**最終更新**: 2026-06-03  
-**ステータス**: 🟡 対策実施済み - `encoder.overlay` を `status = "okay"` + GPIO0.24/25 に変更  
-**次アクション**: GitHub Actions ビルドで `[0][9]` 警告消滅と動作確認
+**最終更新**: 2026-06-04  
+**ステータス**: 🔴 BLE ハング問題未解決 - cormoran/zmk fork の `central.c` 修正が必要  
+**次アクション**: cormoran/zmk を fork し `peripheral_slot` に `sensor_sub_discover_params` を追加（セクション 11 参照）
