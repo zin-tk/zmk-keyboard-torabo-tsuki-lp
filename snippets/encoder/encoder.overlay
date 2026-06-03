@@ -1,13 +1,24 @@
-// Placeholder EC11 node — no hardware connected.
-// Required by zmk,keymap-sensors for DTS binding validation.
-// On Central, DEVICE_DT_GET_OR_NULL returns NULL and initialization is skipped.
+// EC11 placeholder node required on both Central and Peripheral sides.
+//
+// ZMK's DT compiler excludes disabled phandle targets from phandles-type _LEN,
+// so "status = disabled" makes ZMK_KEYMAP_SENSORS_LEN=0. A zero-length
+// remainder[][] array in behavior_sensor_rotate_data then causes a HardFault
+// on Central when sensor events arrive over BLE from Peripheral.
+// This matches LisM's design: encoder is status="okay" on both sides.
+//
+// GPIO P0.24 and P0.25 are intentionally used here because they are
+// unconnected on BMP Boost (not present in its gpio-map). They are configured
+// as pull-up inputs by the EC11 driver and stay stable-high, never firing
+// spurious events. GPIO0.18/16 cannot be used here because they are claimed
+// by SPI0 (trackball) on the Central side.
+// encoder-left.overlay overrides a-gpios/b-gpios to the real pins on Peripheral.
 / {
     encoder: encoder {
         compatible = "alps,ec11";
-        a-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
-        b-gpios = <&gpio0 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+        a-gpios = <&gpio0 24 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+        b-gpios = <&gpio0 25 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
         steps = <12>;
-        status = "disabled";
+        status = "okay";
     };
 
     sensors: sensors {
