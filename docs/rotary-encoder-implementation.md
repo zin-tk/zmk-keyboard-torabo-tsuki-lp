@@ -942,10 +942,12 @@ slot->sensor_subscribe_params.disc_params = &slot->sensor_sub_discover_params;
 
 ### 現在の状態
 
-- 🔴 **未修正** - cormoran/zmk fork の修正が必要
-- 修正ファイル: `cormoran/zmk` の `app/src/split/bluetooth/central.c`
-- 修正内容: `peripheral_slot` に `sensor_sub_discover_params` フィールド追加（2行変更）
-- 作業方法: cormoran/zmk を fork して修正を当てる
+- ✅ **修正済み** (2026-06-04)
+- fork リポジトリ: `zin-tk/zmk`
+- 修正ブランチ: `v0.3-branch+custom-studio-protocol+ble+encoder-fix`
+- 修正コミット: `80214b10f61833ded27f1d5e024802794dc51369`
+- `config/west.yml` 更新済み: zmk 参照先を `zin-tk` fork に変更
+- ビルド確認: GitHub Actions 全ジョブ成功 ✅
 
 ---
 
@@ -961,5 +963,5 @@ slot->sensor_subscribe_params.disc_params = &slot->sensor_sub_discover_params;
 
 **ドキュメント作成**: 2026-05-27  
 **最終更新**: 2026-06-04  
-**ステータス**: 🔴 BLE ハング問題未解決 - cormoran/zmk fork の `central.c` 修正が必要  
-**次アクション**: cormoran/zmk を fork し `peripheral_slot` に `sensor_sub_discover_params` を追加（セクション 11 参照）
+**ステータス**: ✅ BLE ハング問題修正済み - `zin-tk/zmk` fork の `central.c` に `sensor_sub_discover_params` 追加完了  
+**次アクション**: 実機テスト - `left_peripheral_encoder` + `right_central_encoder` の組み合わせでBLE接続 → エンコーダ回転確認
