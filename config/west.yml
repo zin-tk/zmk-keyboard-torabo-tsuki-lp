@@ -6,6 +6,8 @@ manifest:
       url-base: https://github.com/sekigon-gonnoc
     - name: cormoran
       url-base: https://github.com/cormoran
+    - name: zin-tk
+      url-base: https://github.com/zin-tk
     - name: mjmjm0101
       url-base: https://github.com/mjmjm0101
   projects:
@@ -13,10 +15,10 @@ manifest:
 #      remote: zmkfirmware
 #      revision: v0.3
 #      import: app/west.yml
-    # Required: Custom ZMK fork with studio protocol support
+    # Required: Custom ZMK fork with studio protocol support + encoder BLE fix
     - name: zmk
-      remote: cormoran
-      revision: v0.3-branch+custom-studio-protocol+ble
+      remote: zin-tk
+      revision: v0.3-branch+custom-studio-protocol+ble+encoder-fix
       import:
         file: app/west.yml
     - name: zmk-component-bmp-boost
