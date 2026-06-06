@@ -211,7 +211,7 @@
 
         layer_mac {
             bindings = <
-&none  &none          &none     &none     &none             &none                                      &none            &none  &none      &none     &none             &none
+&none  &none          &none     &none     &none             &none                                      &none            &none  &none      &none     &kp D             &kp C
 &none  &kp Q          &kp W     &kp E     &kp R             &kp T                                      &kp Y            &kp U  &kp I      &kp O     &kp P             &none
 &none  &mt1 LCTRL A   &kp S     &kp D     &kp F             &mt1 RCTRL G  &none             &none      &mt1 LCTRL H     &kp J  &kp K      &kp L     &mt1 RCTRL SEMI   &none
 &none  &mt_z LSHIFT Z  &kp X     &kp C     &kp V             &kp B         &kp DEL           &kp BSPC   &mt1 LSHIFT N    &kp M  &kp COMMA  &kp DOT   &mt1 RSHIFT FSLH  &none

@@ -13,3 +13,33 @@
     b-gpios = <&gpio0 19 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
     status = "okay";
 };
+
+/ {
+    kscan_enc_sw: kscan_enc_sw {
+        compatible = "zmk,kscan-gpio-direct";
+        input-gpios
+            = <&gpio0 16 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>
+            , <&gpio0 18 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>
+            ;
+        wakeup-source;
+    };
+
+    kscan_enc_composite: kscan_enc_composite {
+        compatible = "zmk,kscan-composite";
+        rows = <5>;
+        columns = <9>;
+
+        matrix {
+            kscan = <&kscan0>;
+        };
+
+        enc_sw {
+            kscan = <&kscan_enc_sw>;
+            col-offset = <7>;
+        };
+    };
+};
+
+&physical_layout_l {
+    kscan = <&kscan_enc_composite>;
+};
