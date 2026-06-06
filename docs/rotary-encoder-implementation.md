@@ -26,23 +26,24 @@
 
 **詳細分析**：
 ```
-LiSMエンコーダ基板のピン配置（確定）：
+LiSMエンコーダ基板のピン配置（実測確認済み）：
+※ エンコーダ基板はJ101コネクタに対してピン順が逆向きに接続されている
 
-エンコーダ基板ピン  →  FCC コネクタピン  →  torabo-tsuki-lp左側 GPIO
-1 (GND)         →  1 (GND)         →  nRF52840 GND
-2 (VCC 3.3V)    →  5 (+3.3V)       →  nRF52840 3.3V
-3 (ENC_A)       →  2 (SCLK/SDA)    →  GPIO0.18 ✅ （エンコーダA相割り当て）
-4 (ENC_B)       →  3 (SDIO/SCL)    →  GPIO0.16 ✅ （エンコーダB相割り当て）
-5 (SW)          →  4 (CS/IRQ)      →  GPIO0.20 （オプション）
-6 (ID/NC)       →  6 (Power Ctrl)  →  GPIO0.8 （予約）
+エンコーダ基板ピン  →  J101 コネクタピン  →  torabo-tsuki-lp左側 GPIO
+1 (GND)         →  6 (VCC)         →  ※ 要確認
+2 (VCC 3.3V)    →  5 (CS)          →  GPIO0.20 ✅ （ENC_A 動作確認済み）
+3 (ENC_A)       →  4 (MOTION)      →  GPIO0.19 ✅ （ENC_B 動作確認済み）
+4 (ENC_B)       →  3 (SDIO)        →  GPIO0.16 （SW候補）
+5 (SW)          →  2 (SCLK)        →  GPIO0.18 （SW候補）
+6 (ID/NC)       →  1 (GND)         →  nRF52840 GND
 
-条件：
-- 左側でSPI0/I2C0を無効化してGPIOを解放する必要がある
-- 電源・グランド経路は確実に提供されている（10mA消費で十分）
-- FCC端子ピン1, 5がGND/3.3Vとして機能することは確認済み
+実装上の注意：
+- J101コネクタへの接続が逆向きのため、A/BはCS/MOTIONピン（GPIO0.20/0.19）に接続
+- SPI0/I2C0はencoder-left.overlayで無効化済み
+- SWのGPIOはGPIO0.16またはGPIO0.18（未確定、動作確認中）
 ```
 
-**リスク評価**: ✅ 低 - ハードウェア接続可能性確認済み
+**リスク評価**: ✅ 解決済み - 実機動作確認済み
 
 ---
 
