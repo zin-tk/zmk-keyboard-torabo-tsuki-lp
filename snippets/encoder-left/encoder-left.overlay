@@ -1,7 +1,5 @@
 // Override placeholder encoder with real hardware on left peripheral.
 // Frees GPIO0.18/16 from SPI0/I2C0 for EC11 use.
-#include <zephyr/dt-bindings/pinctrl/nrf-pinctrl.h>
-
 &spi0 {
     status = "disabled";
 };
@@ -10,39 +8,8 @@
     status = "disabled";
 };
 
-// Explicitly disconnect SPI0/I2C0 pinctrl from GPIO0.18/16
-// so nRF SPIM0/TWIM0 peripheral does not hold the pins.
-&pinctrl {
-    spi0_default: spi0_default {
-        group1 {
-            psels = <NRF_PSEL_DISCONNECTED>,
-                    <NRF_PSEL_DISCONNECTED>,
-                    <NRF_PSEL_DISCONNECTED>;
-        };
-    };
-    spi0_sleep: spi0_sleep {
-        group1 {
-            psels = <NRF_PSEL_DISCONNECTED>,
-                    <NRF_PSEL_DISCONNECTED>,
-                    <NRF_PSEL_DISCONNECTED>;
-        };
-    };
-    i2c0_default: i2c0_default {
-        group1 {
-            psels = <NRF_PSEL_DISCONNECTED>,
-                    <NRF_PSEL_DISCONNECTED>;
-        };
-    };
-    i2c0_sleep: i2c0_sleep {
-        group1 {
-            psels = <NRF_PSEL_DISCONNECTED>,
-                    <NRF_PSEL_DISCONNECTED>;
-        };
-    };
-};
-
 &encoder {
-    a-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
-    b-gpios = <&gpio0 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+    a-gpios = <&gpio0 11 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+    b-gpios = <&gpio0 8 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
     status = "okay";
 };
