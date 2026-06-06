@@ -1,5 +1,9 @@
-// Override placeholder encoder with real hardware on left peripheral.
-// Frees GPIO0.18/16 from SPI0/I2C0 for EC11 use.
+// Left peripheral encoder overlay.
+// J101コネクタが逆向き接続のため:
+//   A = GPIO0.20 (CS/pin5), B = GPIO0.19 (MOTION/pin4)
+//   SW候補 = GPIO0.16 (SDIO/pin3), GPIO0.18 (SCLK/pin2)
+// SPI0/I2C0を無効化してGPIO0.18/16をSW用に解放する。
+
 &spi0 {
     status = "disabled";
 };
@@ -45,14 +49,7 @@
     };
 };
 
-&physical_layout_s {
-    kscan = <&kscan_enc_composite>;
-};
-
-&physical_layout_m {
-    kscan = <&kscan_enc_composite>;
-};
-
-&physical_layout_l {
-    kscan = <&kscan_enc_composite>;
-};
+// 各レイアウトのkscanプロパティを削除してzmk,chosen（kscan_enc_composite）を使わせる
+&physical_layout_s { /delete-property/ kscan; };
+&physical_layout_m { /delete-property/ kscan; };
+&physical_layout_l { /delete-property/ kscan; };
