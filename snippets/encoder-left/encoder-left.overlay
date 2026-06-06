@@ -45,6 +45,14 @@
     };
 };
 
+&physical_layout_s {
+    kscan = <&kscan_enc_composite>;
+};
+
+&physical_layout_m {
+    kscan = <&kscan_enc_composite>;
+};
+
 &physical_layout_l {
     kscan = <&kscan_enc_composite>;
 };
