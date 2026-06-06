@@ -18,7 +18,7 @@ include:
   - board: bmp_boost
     shield: torabo_tsuki_lp_left
     snippet: "zmk-usb-logging encoder encoder-left"
-    cmake-args: -DCONFIG_ZMK_LOG_LEVEL_DBG=y -DCONFIG_EC11_LOG_LEVEL_DBG=y -DCONFIG_LOG_PROCESS_THREAD_STARTUP_DELAY_MS=20000
+    cmake-args: -DCONFIG_ZMK_LOG_LEVEL_DBG=y -DCONFIG_SENSOR_LOG_LEVEL=4 -DCONFIG_LOG_PROCESS_THREAD_STARTUP_DELAY_MS=20000
     artifact-name: left_peripheral_encoder_debug
   - board: bmp_boost
     shield: torabo_tsuki_lp_right
