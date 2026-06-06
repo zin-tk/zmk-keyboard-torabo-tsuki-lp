@@ -16,6 +16,11 @@ include:
     snippet: "studio-rpc-usb-uart encoder encoder-left"
     artifact-name: left_peripheral_encoder
   - board: bmp_boost
+    shield: torabo_tsuki_lp_left
+    snippet: "zmk-usb-logging encoder encoder-left"
+    cmake-args: -DCONFIG_ZMK_LOG_LEVEL_DBG=y
+    artifact-name: left_peripheral_encoder_debug
+  - board: bmp_boost
     shield: torabo_tsuki_lp_right
     snippet: "studio-rpc-usb-uart split-central input-trackball input-listener"
     artifact-name: right_central
