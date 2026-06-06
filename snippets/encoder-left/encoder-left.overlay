@@ -15,6 +15,10 @@
 };
 
 / {
+    chosen {
+        zmk,kscan = <&kscan_enc_composite>;
+    };
+
     kscan_enc_sw: kscan_enc_sw {
         compatible = "zmk,kscan-gpio-direct";
         input-gpios
@@ -27,7 +31,7 @@
     kscan_enc_composite: kscan_enc_composite {
         compatible = "zmk,kscan-composite";
         rows = <5>;
-        columns = <9>;
+        columns = <12>;
 
         matrix {
             kscan = <&kscan0>;
@@ -35,7 +39,8 @@
 
         enc_sw {
             kscan = <&kscan_enc_sw>;
-            col-offset = <7>;
+            row-offset = <4>;
+            col-offset = <10>;
         };
     };
 };
