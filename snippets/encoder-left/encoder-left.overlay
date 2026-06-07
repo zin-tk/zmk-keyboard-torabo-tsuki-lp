@@ -8,6 +8,10 @@
     status = "disabled";
 };
 
+&i2c0 {
+    status = "disabled";
+};
+
 &encoder {
     a-gpios = <&gpio0 20 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
     b-gpios = <&gpio0 19 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
