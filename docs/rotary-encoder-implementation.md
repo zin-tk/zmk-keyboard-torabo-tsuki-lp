@@ -1037,20 +1037,40 @@ GPIO0.20 を gpio-hog で常時 OUTPUT HIGH にし、GPIO0.18 を kscan-gpio-dir
 30.344s: le_param_updated: interval 12 latency 15
 ```
 
-**根本原因**: `le_param_updated: interval 6, latency 30` 適用後、peripheral が BLE 省電力スリープに入り、GPIO 割り込み（SW 検出）が機能しなくなる。`latency 30` は最大 225ms（30 × 7.5ms）スリープ可能を意味する。Zephyr PM がこのスリープ中に GPIO 割り込みを無効化していると推定。
+**根本原因（確定）**: `le_param_updated: interval 6, latency 30` 適用後、**nRF52 BLEコントローラのハードウェアレベルスリープ**が GPIO 割り込みを無効化する。これはZephyrのPMフレームワークとは独立しているため、`CONFIG_PM=n` では制御不能。
+
+ログ証拠（2026-06-07 取得）:
+- 23.077秒: SW検出 → 成功 (`interval 12, latency 15` 期間)
+- 23.933秒: `le_param_updated: interval 6, latency 30` 適用
+- 25〜28秒: SW複数回押下 → `kscan_direct_read` 一切なし（GPIO割り込み自体が発生していない）
+- 29.093秒: `le_param_updated: interval 12, latency 15` に戻る
+- 30.916秒: SW検出 → 成功
 
 encoder のイベント（split_peripheral_listener）も同タイミングで停止しており、SW だけでなく全 GPIO 割り込みが止まっている。
 
 ---
 
-#### ⑤ CONFIG_PM=n【確認中】
+#### ⑤ CONFIG_PM=n【❌ 効果なし - 2026-06-07 確認】
 
 ```
-# encoder-left.conf に追加
+# encoder-left.conf に追加（効果なし）
 CONFIG_PM=n
 ```
 
-Zephyr の Power Management を無効化することで、BLE peripheral latency によるスリープが GPIO 割り込みを無効化するのを防ぐ試み。
+ZephyrのPMフレームワーク無効化を試みたが、`latency 30`期間中のGPIO割り込みロストは改善されなかった（5回押下で2回検出）。nRF52 BLEコントローラのハードウェアスリープはZephyr PMとは独立して動作するため、この設定では制御できない。
+
+**結果**: ❌ 効果なし（5回中2回検出、改善なし）
+
+---
+
+#### ⑥ CONFIG_BT_PERIPHERAL_PREF_LATENCY=0【確認中】
+
+```
+# encoder-left.conf
+CONFIG_BT_PERIPHERAL_PREF_LATENCY=0
+```
+
+ペリフェラル（左側）がセントラルに対してlatency=0を希望すると通知することで、BLE接続パラメータのlatencyを0に引き下げる試み。セントラルがこの要求に従えば、`latency 30` 期間自体がなくなり、GPIO割り込みが常時有効になる。
 
 **結果**: 確認中
 
@@ -1064,14 +1084,14 @@ Zephyr の Power Management を無効化することで、BLE peripheral latency
 | BLE バッファ増量（CONFIG_BT_CONN_TX_MAX=10） | ❌ 効果なし（原因が kscan 検出層のため） |
 | gpio-hog + kscan-gpio-direct（古いビルド誤適用） | ❌ 誤確認（古いビルドを書き込んでいた） |
 | gpio-hog + kscan-gpio-direct（正しいビルド） | ⚠️ 大幅改善するが取りこぼし継続 |
-| CONFIG_PM=n | 🔄 確認中 |
+| CONFIG_PM=n | ❌ 効果なし（BLEコントローラHWスリープはZephyr PMとは独立） |
+| CONFIG_BT_PERIPHERAL_PREF_LATENCY=0 | 🔄 確認中 |
 
-**根本原因（確定）**: `le_param_updated: interval 6, latency 30` による Zephyr PM スリープが GPIO 割り込みを無効化する。
+**根本原因（確定）**: `le_param_updated: interval 6, latency 30` による nRF52 BLEコントローラのハードウェアスリープが GPIO 割り込みを無効化する。Zephyr PMではなくBLEコントローラ自体の問題。
 
 **次の調査方向**:
-- `CONFIG_PM=n` で全 GPIO 割り込みが復活するか確認
-- 効果なければ `wakeup-source` の正しい設定方法を調査（`CONFIG_PM_DEVICE=y` + GPIO wakeup source 設定）
-- または BLE peripheral latency を 0 に固定する ZMK 設定を調査
+- `CONFIG_BT_PERIPHERAL_PREF_LATENCY=0` でセントラルがlatency 30を要求しなくなるか確認
+- 効果なければ右側（central）の設定でlatency設定を変更（ZMK split central BLE パラメータ）
 
 ---
 
@@ -1086,6 +1106,6 @@ Zephyr の Power Management を無効化することで、BLE peripheral latency
 ---
 
 **ドキュメント作成**: 2026-05-27  
-**最終更新**: 2026-06-04  
+**最終更新**: 2026-06-07  
 **ステータス**: ✅ BLE ハング問題修正済み - `zin-tk/zmk` fork の `central.c` に `sensor_sub_discover_params` 追加完了  
 **次アクション**: 実機テスト - `left_peripheral_encoder` + `right_central_encoder` の組み合わせでBLE接続 → エンコーダ回転確認
