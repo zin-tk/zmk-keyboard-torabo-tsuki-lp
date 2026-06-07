@@ -29,6 +29,11 @@ include:
     snippet: "studio-rpc-usb-uart split-central input-trackball input-listener encoder"
     artifact-name: right_central_encoder
   - board: bmp_boost
+    shield: torabo_tsuki_lp_right
+    snippet: "zmk-usb-logging split-central input-trackball input-listener encoder"
+    cmake-args: -DCONFIG_ZMK_LOG_LEVEL_DBG=y -DCONFIG_LOG_PROCESS_THREAD_STARTUP_DELAY_MS=20000
+    artifact-name: right_central_encoder_debug
+  - board: bmp_boost
     shield: torabo_tsuki_lp_left
     snippet: "studio-rpc-usb-uart input-trackball input-split"
     artifact-name: torabo_tsuki_lp_double_ball_left_peripheral
