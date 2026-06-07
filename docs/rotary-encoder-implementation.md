@@ -1063,14 +1063,35 @@ ZephyrのPMフレームワーク無効化を試みたが、`latency 30`期間中
 
 ---
 
-#### ⑥ CONFIG_BT_PERIPHERAL_PREF_LATENCY=0【確認中】
+#### ⑥ CONFIG_BT_PERIPHERAL_PREF_LATENCY=0【❌ 効果なし - 2026-06-07 確認】
 
 ```
-# encoder-left.conf
+# encoder-left.conf（効果なし）
 CONFIG_BT_PERIPHERAL_PREF_LATENCY=0
 ```
 
-ペリフェラル（左側）がセントラルに対してlatency=0を希望すると通知することで、BLE接続パラメータのlatencyを0に引き下げる試み。セントラルがこの要求に従えば、`latency 30` 期間自体がなくなり、GPIO割り込みが常時有効になる。
+ペリフェラルがlatency=0を希望する設定。セントラル（右側）はこれを無視して`latency 30`を継続要求。効果なし（5回中1回検出）。
+
+追加判明事実：セッション3のログで `interval 24 latency 8` 期間中（21〜32秒）に5回以上押下したが11回のsplit_peripheral_listenerのうち`kscan_direct_read`は1回のみ。**latency 30 だけでなく latency 8 でも取りこぼしが発生する**。根本原因は BLE latency 設定の問題ではなく、**`kscan-gpio-direct` の GPIO 割り込みが BLE スタックの処理負荷に依存して確率的に失敗している**ことが判明。
+
+**結果**: ❌ 効果なし（5回中1回検出）
+
+---
+
+#### ⑦ kscan-gpio-matrix polling mode【確認中】
+
+```dts
+// encoder-left.overlay
+kscan_enc_sw: kscan_enc_sw {
+    compatible = "zmk,kscan-gpio-matrix";
+    wakeup-source;
+    col-gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
+    row-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+    poll-period-ms = <10>;
+};
+```
+
+`kscan-gpio-direct`（GPIO割り込みベース）の代わりに `kscan-gpio-matrix` の polling mode を使用。10ms間隔で定期スキャンするため、BLE latencyやGPIO割り込みタイミングに依存しない。gpio-hogは不要（kscan-gpio-matrixが自分でcolを制御するため削除）。
 
 **結果**: 確認中
 
@@ -1085,13 +1106,13 @@ CONFIG_BT_PERIPHERAL_PREF_LATENCY=0
 | gpio-hog + kscan-gpio-direct（古いビルド誤適用） | ❌ 誤確認（古いビルドを書き込んでいた） |
 | gpio-hog + kscan-gpio-direct（正しいビルド） | ⚠️ 大幅改善するが取りこぼし継続 |
 | CONFIG_PM=n | ❌ 効果なし（BLEコントローラHWスリープはZephyr PMとは独立） |
-| CONFIG_BT_PERIPHERAL_PREF_LATENCY=0 | 🔄 確認中 |
+| CONFIG_BT_PERIPHERAL_PREF_LATENCY=0 | ❌ 効果なし（セントラルがlatency 30を強制継続） |
+| kscan-gpio-matrix polling mode | 🔄 確認中 |
 
-**根本原因（確定）**: `le_param_updated: interval 6, latency 30` による nRF52 BLEコントローラのハードウェアスリープが GPIO 割り込みを無効化する。Zephyr PMではなくBLEコントローラ自体の問題。
+**根本原因（確定）**: `kscan-gpio-direct` の GPIO 割り込みが BLE スタックの処理負荷に依存して確率的に失敗する。BLE latency の値に関わらず発生（latency 8, 15, 30 すべてで取りこぼしあり）。
 
 **次の調査方向**:
-- `CONFIG_BT_PERIPHERAL_PREF_LATENCY=0` でセントラルがlatency 30を要求しなくなるか確認
-- 効果なければ右側（central）の設定でlatency設定を変更（ZMK split central BLE パラメータ）
+- kscan-gpio-matrix polling mode（10ms間隔）で GPIO 割り込み依存を排除する
 
 ---
 
