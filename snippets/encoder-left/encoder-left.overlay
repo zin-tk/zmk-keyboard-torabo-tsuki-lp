@@ -1,6 +1,7 @@
 // Left peripheral encoder overlay.
 // J101逆向き接続: A=GPIO0.16(SDIO), B=GPIO0.19(MOTION)
-// SW: col=GPIO0.20(HIGH駆動), row=GPIO0.18(PULL_DOWN)でmatrix検出。
+// SW: GPIO0.20をgpio-hogでOUTPUT HIGH固定、GPIO0.18をkscan-gpio-directで検出。
+// idle時もGPIO0.20がHIGHなのでSW押下で即座に割り込みが発生する。
 // SPI0/I2C0を無効化してGPIO0.16/0.18/0.20を解放する。
 
 &spi0 {
@@ -9,6 +10,15 @@
 
 &i2c0 {
     status = "disabled";
+};
+
+// GPIO0.20をSW用の常時HIGH電圧源として設定（kscanドライバに取られる前に設定）
+&gpio0 {
+    enc_sw_drive: enc_sw_drive {
+        gpio-hog;
+        gpios = <20 0>;
+        output-high;
+    };
 };
 
 &encoder {
@@ -23,11 +33,9 @@
     };
 
     kscan_enc_sw: kscan_enc_sw {
-        compatible = "zmk,kscan-gpio-matrix";
-        diode-direction = "col2row";
+        compatible = "zmk,kscan-gpio-direct";
+        input-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
         wakeup-source;
-        col-gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
-        row-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
     };
 
     kscan_enc_composite: kscan_enc_composite {
