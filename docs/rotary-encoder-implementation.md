@@ -1078,10 +1078,10 @@ CONFIG_BT_PERIPHERAL_PREF_LATENCY=0
 
 ---
 
-#### ⑦ kscan-gpio-matrix polling mode【確認中】
+#### ⑦ kscan-gpio-matrix polling mode【❌ 致命的問題 - 即時リバート】
 
 ```dts
-// encoder-left.overlay
+// encoder-left.overlay（致命的問題のため即時リバート）
 kscan_enc_sw: kscan_enc_sw {
     compatible = "zmk,kscan-gpio-matrix";
     wakeup-source;
@@ -1091,9 +1091,11 @@ kscan_enc_sw: kscan_enc_sw {
 };
 ```
 
-`kscan-gpio-direct`（GPIO割り込みベース）の代わりに `kscan-gpio-matrix` の polling mode を使用。10ms間隔で定期スキャンするため、BLE latencyやGPIO割り込みタイミングに依存しない。gpio-hogは不要（kscan-gpio-matrixが自分でcolを制御するため削除）。
+1col構成の polling mode では col（GPIO0.20）が10msごとにHIGHになる。SW押下後に指を離してもcol HIGH→row PULL_DOWN動作が間に合わず、SW on状態が継続してCが連続入力され続ける致命的な不具合が発生した。
 
-**結果**: 確認中
+**結果**: ❌ 致命的問題（SW押下後C連続入力、即時リバート）
+
+overlay は gpio-hog + kscan-gpio-direct に戻した。
 
 ---
 
@@ -1107,12 +1109,13 @@ kscan_enc_sw: kscan_enc_sw {
 | gpio-hog + kscan-gpio-direct（正しいビルド） | ⚠️ 大幅改善するが取りこぼし継続 |
 | CONFIG_PM=n | ❌ 効果なし（BLEコントローラHWスリープはZephyr PMとは独立） |
 | CONFIG_BT_PERIPHERAL_PREF_LATENCY=0 | ❌ 効果なし（セントラルがlatency 30を強制継続） |
-| kscan-gpio-matrix polling mode | 🔄 確認中 |
+| kscan-gpio-matrix polling mode | ❌ 致命的問題（C連続入力）、即時リバート |
 
-**根本原因（確定）**: `kscan-gpio-direct` の GPIO 割り込みが BLE スタックの処理負荷に依存して確率的に失敗する。BLE latency の値に関わらず発生（latency 8, 15, 30 すべてで取りこぼしあり）。
+**現在の状態**: gpio-hog + kscan-gpio-direct に戻した（⑦リバート後）。BLE latency期間中の取りこぼしは未解決。
 
 **次の調査方向**:
-- kscan-gpio-matrix polling mode（10ms間隔）で GPIO 割り込み依存を排除する
+- ZMKフォーク（zin-tk/zmk）の split_bt_central.c でセントラルが送る BLE 接続パラメータを変更してlatency=0に固定する
+- またはペリフェラル（左）側からbt_conn_le_param_update()でlatency=0を再要求するカスタムコードをsrc/に追加する
 
 ---
 

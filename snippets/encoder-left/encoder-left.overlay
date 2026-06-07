@@ -1,11 +1,18 @@
 // Left peripheral encoder overlay.
 // J101: A=GPIO0.16(SDIO), B=GPIO0.19(MOTION)
-// SW: GPIO0.20(col/drive) -> GPIO0.18(row/sense) kscan-gpio-matrix polling mode.
-// polling mode avoids BLE latency/GPIO interrupt timing issues.
+// SW: GPIO0.20 gpio-hog OUTPUT HIGH, GPIO0.18 kscan-gpio-direct interrupt.
 // SPI0/I2C0 disabled to free GPIO0.16/0.18/0.20.
 
 &spi0 { status = "disabled"; };
 &i2c0 { status = "disabled"; };
+
+&gpio0 {
+    enc_sw_drive: enc_sw_drive {
+        gpio-hog;
+        gpios = <20 0>;
+        output-high;
+    };
+};
 
 &encoder {
     a-gpios = <&gpio0 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
@@ -19,11 +26,9 @@
     };
 
     kscan_enc_sw: kscan_enc_sw {
-        compatible = "zmk,kscan-gpio-matrix";
+        compatible = "zmk,kscan-gpio-direct";
+        input-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
         wakeup-source;
-        col-gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
-        row-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
-        poll-period-ms = <10>;
     };
 
     kscan_enc_composite: kscan_enc_composite {
