@@ -952,6 +952,129 @@ slot->sensor_subscribe_params.disc_params = &slot->sensor_sub_discover_params;
 
 ---
 
+## 12. EC11 SW プッシュスイッチ実装調査（進行中）
+
+### ハードウェア仕様
+
+- J101 コネクタは逆向き実装: Pin2=VCC(3.3V), Pin3=ENC_A, Pin4=ENC_B, Pin5=SW, Pin6=GND
+- GPIO マッピング（逆向き後）: A=GPIO0.16(SDIO), B=GPIO0.19(MOTION), SW=GPIO0.18(SCLK)
+- SW のもう一端（共通端子）: GPIO0.20(CS) に接続
+- SPI0 / I2C0 を `status = "disabled"` にして GPIO0.16/0.18/0.20 を解放
+
+---
+
+### 試みた対策と結果
+
+#### ① kscan-gpio-matrix（ACTIVE_HIGH col、interrupt モード）【取りこぼし多発】
+
+```dts
+kscan_enc_sw: kscan_enc_sw {
+    compatible = "zmk,kscan-gpio-matrix";
+    col-gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
+    row-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+};
+```
+
+**結果**: SW 取りこぼしが頻発。10 回押下で 2 回程度しか検出されない。
+
+**根本原因（ログで確定）**: interrupt モードでは idle 時に col = LOW。SW 押下時に row が LOW→LOW のまま変化なし → 割り込み発生なし → スキャン未実行 → 未検出。エンコーダ回転時に偶然スキャンが走ったときのみ検出できる。
+
+左ペリフェラルログで確認: 10 回押下 → `position: 41` イベントは 4 件のみ（2 回分）。
+
+---
+
+#### ② BLE 送信バッファ増量（CONFIG_BT_CONN_TX_MAX=10）【効果なし】
+
+```
+CONFIG_BT_CONN_TX_MAX=10
+CONFIG_BT_BUF_ACL_TX_COUNT=10
+```
+
+右 central ログでエンコーダのジッター通知（`triggers:0` の sensor notification）が BLE を占有している可能性を疑い実施。
+
+**結果**: 改善なし。原因が BLE 層でなく kscan 検出層（peripheral 側）にあることを左ペリフェラルログで確認したため。
+
+---
+
+#### ③ gpio-hog + kscan-gpio-direct（古いビルドで誤検証）【効果なし扱い→実は有効】
+
+```dts
+&gpio0 {
+    enc_sw_drive: enc_sw_drive {
+        gpio-hog;
+        gpios = <20 0>;
+        output-high;
+    };
+};
+
+kscan_enc_sw: kscan_enc_sw {
+    compatible = "zmk,kscan-gpio-direct";
+    input-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+    wakeup-source;
+};
+```
+
+GPIO0.20 を gpio-hog で常時 OUTPUT HIGH にし、GPIO0.18 を kscan-gpio-direct で検出。
+
+**初回確認時の結果**: 「一部改善」と報告。→ **実際は古いビルド（kscan-gpio-matrix）を書き込んでいたことが後に判明。** ログに `kscan_matrix_init_output_inst: pin 20` が出ており、overlay の変更が反映されていなかった。
+
+**正しいビルドで再確認**: ログに `kscan_direct_init_input_inst: pin 18` が出るようになり、5回押下テストで14回検出（以前は2回）と大幅改善。
+
+**しかし依然として取りこぼし継続**（5回押下でCは1出力）。
+
+---
+
+#### ④ BLE peripheral latency スリープが原因と特定
+
+5回押下テストのログで決定的なパターンを確認：
+
+```
+24.223s: kscan_direct_read: SW pressed   ← 1回目 検出
+24.401s: kscan_direct_read: SW released
+24.981s: le_param_updated: interval 6 latency 30  ← ここでスリープ移行
+25.255s: split_peripheral_listener（最後のイベント）
+（以降 沈黙。残り4回のSW押下は一切検出されない）
+30.344s: le_param_updated: interval 12 latency 15
+```
+
+**根本原因**: `le_param_updated: interval 6, latency 30` 適用後、peripheral が BLE 省電力スリープに入り、GPIO 割り込み（SW 検出）が機能しなくなる。`latency 30` は最大 225ms（30 × 7.5ms）スリープ可能を意味する。Zephyr PM がこのスリープ中に GPIO 割り込みを無効化していると推定。
+
+encoder のイベント（split_peripheral_listener）も同タイミングで停止しており、SW だけでなく全 GPIO 割り込みが止まっている。
+
+---
+
+#### ⑤ CONFIG_PM=n【確認中】
+
+```
+# encoder-left.conf に追加
+CONFIG_PM=n
+```
+
+Zephyr の Power Management を無効化することで、BLE peripheral latency によるスリープが GPIO 割り込みを無効化するのを防ぐ試み。
+
+**結果**: 確認中
+
+---
+
+### 現在の状態（2026-06-07）
+
+| 対策 | 結果 |
+|------|------|
+| kscan-gpio-matrix interrupt mode | ❌ 取りこぼし多発（根本原因: idle 時 col=LOW） |
+| BLE バッファ増量（CONFIG_BT_CONN_TX_MAX=10） | ❌ 効果なし（原因が kscan 検出層のため） |
+| gpio-hog + kscan-gpio-direct（古いビルド誤適用） | ❌ 誤確認（古いビルドを書き込んでいた） |
+| gpio-hog + kscan-gpio-direct（正しいビルド） | ⚠️ 大幅改善するが取りこぼし継続 |
+| CONFIG_PM=n | 🔄 確認中 |
+
+**根本原因（確定）**: `le_param_updated: interval 6, latency 30` による Zephyr PM スリープが GPIO 割り込みを無効化する。
+
+**次の調査方向**:
+- `CONFIG_PM=n` で全 GPIO 割り込みが復活するか確認
+- 効果なければ `wakeup-source` の正しい設定方法を調査（`CONFIG_PM_DEVICE=y` + GPIO wakeup source 設定）
+- または BLE peripheral latency を 0 に固定する ZMK 設定を調査
+
+---
+
 ## 9. 参考資料
 
 - **ZMK RotaryEncoder**: https://zmk.dev/docs/features/encoders
