@@ -1099,39 +1099,53 @@ overlay は gpio-hog + kscan-gpio-direct に戻した。
 
 ---
 
-#### ⑧ CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE=50【確認中】
+#### ⑧ CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE=50
 
 ```
 # encoder-left.conf
 CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE=50
 ```
 
-**根本原因（ログ解析で確定）**: `zmk/app/src/split/bluetooth/service.c` で `sensor_state_msgq` と `position_state_msgq` は共に `CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE`（デフォルト10）を使用している。エンコーダを激しく回すとセンサーイベントがキューを満杯にし（`Sensor state message queue full` 警告）、その後約1〜3秒間kscanイベント処理が停止する。これが「エンコーダとSWが同時に止まる不感帯」の真因。BLE latencyとは無関係。
+**根本原因（ログ解析で確定）**: `zmk/app/src/split/bluetooth/service.c` で `sensor_state_msgq` と `position_state_msgq` は共に `CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE`（デフォルト10）を使用している。エンコーダを激しく回すとセンサーイベントがキューを満杯にし（`Sensor state message queue full` 警告）、その後約1〜3秒間kscanイベント処理が停止する。
 
 証拠ログ（2026-06-07）:
 - 28.131秒: `Sensor state message queue full` → 29.207秒まで約1秒の不感帯
 - 33.723, 33.828, 33.929秒: 連続3回 `Sensor state message queue full` → 33.247〜33.829秒に不感帯
 
-**結果**: 確認中
+**結果**: ❌ 効果なし。Sensor state message queue full 警告は依然として発生。改善なし。
 
 ---
 
-### 現在の状態（2026-06-07）
+#### ⑨ CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=50
+
+```
+# torabo_tsuki_lp_right.conf
+CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=50
+```
+
+**根拠**: `zmk/app/src/split/bluetooth/central.c` の `peripheral_event_msgq` はデフォルトサイズ5で `K_NO_WAIT`（サイレントドロップ）。これが右側でのイベント欠落の原因と推定。
+
+**結果**: ❌ 効果なし。エンコーダ・SW共に反応が非常に悪い状態は変わらず。
+
+---
+
+### 現在の状態（2026-06-08）
 
 | 対策 | 結果 |
 |------|------|
 | kscan-gpio-matrix interrupt mode | ❌ 取りこぼし多発（根本原因: idle 時 col=LOW） |
-| BLE バッファ増量（CONFIG_BT_CONN_TX_MAX=10） | ❌ 効果なし（原因が kscan 検出層のため） |
+| BLE バッファ増量（CONFIG_BT_CONN_TX_MAX=10） | ❌ 効果なし |
 | gpio-hog + kscan-gpio-direct（古いビルド誤適用） | ❌ 誤確認（古いビルドを書き込んでいた） |
 | gpio-hog + kscan-gpio-direct（正しいビルド） | ⚠️ 大幅改善するが取りこぼし継続 |
 | CONFIG_PM=n | ❌ 効果なし（BLEコントローラHWスリープはZephyr PMとは独立） |
 | CONFIG_BT_PERIPHERAL_PREF_LATENCY=0 | ❌ 効果なし（セントラルがlatency 30を強制継続） |
 | kscan-gpio-matrix polling mode | ❌ 致命的問題（C連続入力）、即時リバート |
-| CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE=50 | 🔄 確認中 |
+| CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE=50 | ❌ 効果なし（警告は依然発生） |
+| CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=50 | ❌ 効果なし |
 
-**現在の状態**: gpio-hog + kscan-gpio-direct、キューサイズ50に設定。
+**現在の状態**: gpio-hog + kscan-gpio-direct、左右キューサイズ50に設定。それでも改善しない。
 
-**根本原因（確定）**: エンコーダ高速回転 → sensor_state_msgq 満杯（デフォルト10件） → ZMKイベント処理全体が停止 → SW・エンコーダ両方の不感帯（1〜3秒）が発生する。BLE latency・PM・GPIO割り込みとは無関係。
+**次の候補**: BLE接続パラメータ `CONFIG_ZMK_SPLIT_BLE_PREF_LATENCY`（デフォルト30）を右側confで0に変更。central.c L818で右側がこの値でlatencyを要求している。latency=30は最大225msのイベント処理遅延を引き起こす可能性がある。消費電力増加の懸念あり。
 
 ---
 
