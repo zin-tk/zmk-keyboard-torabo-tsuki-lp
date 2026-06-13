@@ -1151,7 +1151,13 @@ central.c の `split_central_sensor_notify_func` と `split_central_notify_func`
 
 証拠：ログで252回の `messages dropped`。センサーイベント1回あたり9レイヤー分のログが発生するため、ログバッファが溢れている（実際の処理は正常）。
 
-**修正内容**: `ec11_trigger.c` の `ec11_a_gpio_callback` と `ec11_b_gpio_callback` で `setup_int(false)` の直後に `ec11_sample_fetch(drv_data->dev, SENSOR_CHAN_ROTATION)` を追加。割り込み時点のAB状態変化を正確にdeltaとして記録する。
+**仮説として検討した修正**: `ec11_trigger.c` の各コールバックで `setup_int(false)` 直後に `ec11_sample_fetch` を呼ぶ案。ただし：
+- ZMKのec11ドライバは多数のキーボードで実績があり、「根本的なバグ」と断定できない
+- ISR内での `ec11_sample_fetch` 呼び出しの副作用（他ドライバとの干渉等）が不明
+- `val1=+30/-30` 交互振動はこの修正では解決しない（チャタリングの可能性）
+- torabo-tsuki-LP固有の条件（SPI0流用ピン、FCC接続による信号品質等）が真因の可能性
+
+**→ 修正は適用せず保留。** 副作用が判断できるまで実施しない。
 
 central.c の WRN 変更は確認後に DBG に戻した。
 
@@ -1170,13 +1176,13 @@ central.c の WRN 変更は確認後に DBG に戻した。
 | kscan-gpio-matrix polling mode | ❌ 致命的問題（C連続入力）、即時リバート |
 | CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE=50 | ❌ 効果なし（警告は依然発生） |
 | CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=50 | ❌ 効果なし |
-| ec11_trigger.c: ISR内でec11_sample_fetch追加 | 🔄 2026-06-13 適用済み、効果未確認 |
+| ec11_trigger.c: ISR内でec11_sample_fetch追加 | ⏸️ 保留（副作用不明、リバート済み） |
 
-**現在の状態**: gpio-hog + kscan-gpio-direct。ec11_trigger.c を修正してISR内でサンプリングを行うように変更済み。
+**現在の状態**: gpio-hog + kscan-gpio-direct のみ。ec11_trigger.c は未変更。
 
 **確定事実**: 
 - SW（位置41）は右側に正しく届いており、BLE通信・キーマップ処理は正常
-- エンコーダのval1=0多発はec11_trigger.cのタイミングバグが根本原因
+- エンコーダのval1=0多発（48%）は観測済みだが、根本原因は未特定（ec11_trigger.cタイミング問題・チャタリング・SPI流用ピンの信号品質など複数の可能性あり）
 
 ---
 
