@@ -1161,9 +1161,30 @@ central.c の `split_central_sensor_notify_func` と `split_central_notify_func`
 
 central.c の WRN 変更は確認後に DBG に戻した。
 
+#### ⑪ 根本原因特定と解決（2026-06-13）
+
+**根本原因の最終確定**：
+
+`steps=12`（degree計算パス）と `GLOBAL_THREAD` の組み合わせが問題。
+
+- `steps > 0` パスでは `delta=0` のとき `pulses` が蓄積されず `val1=0, val2=0` → `triggers=0` → 完全ロスト
+- `steps=0`（resolution パス）では `delta=0` でも別のパルスで蓄積が回収できる
+- `GLOBAL_THREAD`（system workqueue）では BLE/kscan との競合で work 実行が遅延 → A/B が複数状態遷移 → 非隣接遷移で `delta=0`
+
+**試みた解決策1（採用）**: `steps=12` → `resolution=2` に変更
+
+- `delta=0` 時も `val1=0, val2=delta` の resolution パスになり、`triggers = val2` でロストしない
+- 取りこぼし完全解消を確認
+
+**試みた解決策2（採用）**: `CONFIG_EC11_TRIGGER_OWN_THREAD=y` に変更（`steps=12` のまま）
+
+- ISR → `k_sem_give` → 専用スレッド（priority=10）が即座にwakeup → `ec11_sample_fetch` の遅延が大幅減少
+- `delta=0` の発生自体が減るため、`steps=12` のまま取りこぼし解消を確認
+- **こちらを最終採用**（overlayを `steps=12` に戻し、confを `OWN_THREAD` に変更）
+
 ---
 
-### 現在の状態（2026-06-13）
+### 現在の状態（2026-06-13 解決済み）
 
 | 対策 | 結果 |
 |------|------|
@@ -1177,12 +1198,12 @@ central.c の WRN 変更は確認後に DBG に戻した。
 | CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE=50 | ❌ 効果なし（警告は依然発生） |
 | CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=50 | ❌ 効果なし |
 | ec11_trigger.c: ISR内でec11_sample_fetch追加 | ⏸️ 保留（副作用不明、リバート済み） |
+| encoder.overlay: steps=12 → resolution=2 | ✅ 取りこぼし解消（単独でも有効） |
+| CONFIG_EC11_TRIGGER_OWN_THREAD=y（steps=12のまま） | ✅ 取りこぼし解消・**最終採用** |
 
-**現在の状態**: gpio-hog + kscan-gpio-direct のみ。ec11_trigger.c は未変更。
+**現在の状態**: gpio-hog + kscan-gpio-direct + `CONFIG_EC11_TRIGGER_OWN_THREAD=y`、`steps=12` のまま。
 
-**確定事実**: 
-- SW（位置41）は右側に正しく届いており、BLE通信・キーマップ処理は正常
-- エンコーダのval1=0多発（48%）は観測済みだが、根本原因は未特定（ec11_trigger.cタイミング問題・チャタリング・SPI流用ピンの信号品質など複数の可能性あり）
+**解決済み**: エンコーダの取りこぼし問題は `OWN_THREAD` 化により解消。
 
 ---
 
