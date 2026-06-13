@@ -1129,7 +1129,35 @@ CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=50
 
 ---
 
-### 現在の状態（2026-06-08）
+#### ⑩ 右側ログ解析（2026-06-13）
+
+central.c の `split_central_sensor_notify_func` と `split_central_notify_func` のログレベルを一時的に WRN に変更してビルド・書き込みし、右側ログを取得した。
+
+**確認事実**:
+
+- `[SENSOR NOTIFICATION]` が右側に届いていることを確認（BLE通信層は正常）
+- SW（位置41）は `Trigger key position state change for 41` → `on_keymap_binding_pressed: position 41 keycode 0x70006` まで正常到達
+- エンコーダのセンサーイベント（`zmk_behavior_sensor_rotate_common_accept_data`）で `val1: 0` が 249/515 回（48%）発生
+- `val1: +30/-30` が交互に来て remainder が 30→0→30 と振動し、60° に到達せず `triggers: 0` が続く
+- `triggers: 1` は全ログで1回のみ（L2861）
+
+**根本原因（確定）**: `ec11_trigger.c`（GLOBAL_THREAD）で GPIO 割り込みコールバック内で `ec11_sample_fetch` を呼んでいない。
+
+フロー：
+1. A変化 → 割り込み → `setup_int(false)` → `k_work_submit`（**この時点でsample_fetchはまだ未実施**）
+2. work実行 → `sensor_sample_fetch` → `ec11_sample_fetch` で**現在のAB状態を読む**
+
+問題：1→2の間にB（またはA）が次状態に遷移すると、`prev→new` が非隣接遷移（例: `00→11`）になり switch defaultで **delta=0** → pulses=0 → `val1=0`。
+
+証拠：ログで252回の `messages dropped`。センサーイベント1回あたり9レイヤー分のログが発生するため、ログバッファが溢れている（実際の処理は正常）。
+
+**修正内容**: `ec11_trigger.c` の `ec11_a_gpio_callback` と `ec11_b_gpio_callback` で `setup_int(false)` の直後に `ec11_sample_fetch(drv_data->dev, SENSOR_CHAN_ROTATION)` を追加。割り込み時点のAB状態変化を正確にdeltaとして記録する。
+
+central.c の WRN 変更は確認後に DBG に戻した。
+
+---
+
+### 現在の状態（2026-06-13）
 
 | 対策 | 結果 |
 |------|------|
@@ -1142,10 +1170,13 @@ CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=50
 | kscan-gpio-matrix polling mode | ❌ 致命的問題（C連続入力）、即時リバート |
 | CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE=50 | ❌ 効果なし（警告は依然発生） |
 | CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=50 | ❌ 効果なし |
+| ec11_trigger.c: ISR内でec11_sample_fetch追加 | 🔄 2026-06-13 適用済み、効果未確認 |
 
-**現在の状態**: gpio-hog + kscan-gpio-direct のみ。効果のなかったBLEバッファ増量・キューサイズ変更はすべてリバート済み。encoder-left.conf は空、right.conf もデフォルト状態。
+**現在の状態**: gpio-hog + kscan-gpio-direct。ec11_trigger.c を修正してISR内でサンプリングを行うように変更済み。
 
-**確定事実**: エンコーダ回転始め（キュー空の状態）でも取りこぼしが発生する。キュー詰まりが原因ではない。
+**確定事実**: 
+- SW（位置41）は右側に正しく届いており、BLE通信・キーマップ処理は正常
+- エンコーダのval1=0多発はec11_trigger.cのタイミングバグが根本原因
 
 ---
 
