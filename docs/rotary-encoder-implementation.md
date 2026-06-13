@@ -1143,9 +1143,9 @@ CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=50
 | CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_POSITION_QUEUE_SIZE=50 | ❌ 効果なし（警告は依然発生） |
 | CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=50 | ❌ 効果なし |
 
-**現在の状態**: gpio-hog + kscan-gpio-direct、左右キューサイズ50に設定。それでも改善しない。
+**現在の状態**: gpio-hog + kscan-gpio-direct のみ。効果のなかったBLEバッファ増量・キューサイズ変更はすべてリバート済み。encoder-left.conf は空、right.conf もデフォルト状態。
 
-**次の候補**: BLE接続パラメータ `CONFIG_ZMK_SPLIT_BLE_PREF_LATENCY`（デフォルト30）を右側confで0に変更。central.c L818で右側がこの値でlatencyを要求している。latency=30は最大225msのイベント処理遅延を引き起こす可能性がある。消費電力増加の懸念あり。
+**確定事実**: エンコーダ回転始め（キュー空の状態）でも取りこぼしが発生する。キュー詰まりが原因ではない。
 
 ---
 
