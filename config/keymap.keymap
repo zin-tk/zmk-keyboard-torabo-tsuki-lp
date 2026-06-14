@@ -1,3 +1,5 @@
+#define ZMK_POINTING_DEFAULT_SCRL_VAL 10
+
 #include <behaviors.dtsi>
 #include <dt-bindings/zmk/bt.h>
 #include <dt-bindings/zmk/keys.h>
@@ -164,6 +166,13 @@
 
         };
 
+        encoder_msc: encoder_msc {
+            compatible = "zmk,behavior-sensor-rotate-var";
+            #sensor-binding-cells = <2>;
+            bindings = <&msc>, <&msc>;
+            tap-ms = <20>;
+        };
+
     };
 
     macros {
@@ -218,7 +227,7 @@
 &none  &mt_z LSHIFT Z  &kp X     &kp C     &kp V             &kp B         &kp DEL           &kp BSPC   &mt1 LSHIFT N    &kp M  &kp COMMA  &kp DOT   &mt1 RSHIFT FSLH  &none
 &none  &kp TAB        &kp LGUI  &kp LALT  &lt LT_NUM LANG2  &mo LT_SYM    &mt1 RSHFT LANG1  &kp SPACE  &lt1 LT_FN ENTER  &none  &mkp MCLK  &kp RGUI  &kp ESC           &none
             >;
-            sensor-bindings = <&sensor_rotate_kp C_AC_SCROLL_UP C_AC_SCROLL_DOWN>;
+            sensor-bindings = <&encoder_msc SCRL_DOWN SCRL_UP>;
         };
 
         layer_win {
