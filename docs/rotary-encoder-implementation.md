@@ -1200,10 +1200,16 @@ central.c の WRN 変更は確認後に DBG に戻した。
 | ec11_trigger.c: ISR内でec11_sample_fetch追加 | ⏸️ 保留（副作用不明、リバート済み） |
 | encoder.overlay: steps=12 → resolution=2 | ✅ 取りこぼし解消（単独でも有効） |
 | CONFIG_EC11_TRIGGER_OWN_THREAD=y（steps=12のまま） | ✅ 取りこぼし解消・**最終採用** |
+| sensor-bindings: sensor_rotate_kp A B → kp A/B 出力 | ✅ デバッグ動作確認済み |
+| sensor-bindings: sensor_rotate_kp C_AC_SCROLL_UP/DOWN | ❌ 反応なし（macOSがHIDコンシューマーのスクロールを認識しない） |
+| sensor-bindings: encoder_msc SCRL_DOWN/SCRL_UP（tap-ms=20） | ❌ 反応なし（mscのtick_work=16msタイマー経由のため、tap-ms内にスクロールが発生しない） |
+| ZMK_POINTING_DEFAULT_SCRL_VAL=100 | ❌ 反応なし |
+| ZMK_POINTING_DEFAULT_SCRL_VAL=1000（smooth scrolling補正） | ❌ 反応なし（2026-06-14確認） |
 
-**現在の状態**: gpio-hog + kscan-gpio-direct + `CONFIG_EC11_TRIGGER_OWN_THREAD=y`、`steps=12` のまま。
+**現在の状態**: gpio-hog + kscan-gpio-direct + `CONFIG_EC11_TRIGGER_OWN_THREAD=y`、`steps=12`。
+sensor-bindings は `encoder_msc SCRL_DOWN/SCRL_UP` のまま（未解決）。
 
-**解決済み**: エンコーダの取りこぼし問題は `OWN_THREAD` 化により解消。
+**未解決**: エンコーダのスクロール出力。`kp` で動作・`msc` で動作しない。SCRL_VAL変更（100/1000）は効果なし。
 
 ---
 
