@@ -22,7 +22,7 @@ manifest:
     - name: zmk-component-bmp-boost
       remote: sekigon-gonnoc
       import: west.yml
-      revision: master
+      revision: v0.2
     - name: zmk-feature-status-led
       remote: sekigon-gonnoc
       revision: main
