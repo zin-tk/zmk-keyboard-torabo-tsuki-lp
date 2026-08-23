@@ -16,7 +16,7 @@ manifest:
     # Required: Custom ZMK fork with studio protocol support
     - name: zmk
       remote: cormoran
-      revision: v0.3-branch+custom-studio-protocol+ble
+      revision: main+custom-studio-protocol
       import:
         file: app/west.yml
     - name: zmk-component-bmp-boost
@@ -39,7 +39,7 @@ manifest:
       revision: main
     - name: zmk-module-ble-management
       remote: cormoran
-      revision: zmk-v0.3.0.0
+      revision: main
     - name: zmk-module-battery-history
       remote: cormoran
       revision: main
