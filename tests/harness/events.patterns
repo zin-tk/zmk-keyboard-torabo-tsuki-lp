@@ -1,0 +1,8 @@
+# zmk.exe のログから「PC 側から見た出力」と「レイヤ状態」だけを抜き出す。
+# ここで抜き出した行が expected.snapshot と比較される。
+s/.*hid_listener_keycode_pressed: /key press:   /p
+s/.*hid_listener_keycode_released: /key release: /p
+s/.*zmk_hid_mouse_button_press: Mouse buttons set to /mouse buttons: /p
+s/.*zmk_hid_mouse_button_release: Mouse buttons set to /mouse buttons: /p
+s/.*set_layer_state: layer_changed: /layer: /p
+s/.*bt_stub: /bt: /p

@@ -1,0 +1,12 @@
+name: レイヤタップと半身をまたぐ解決
+description: |
+  右手(セントラル)の Enter キー(&lt1 LT_FN ENTER, hold-preferred / 200ms)。
+  前半: 短く叩いて Enter が出ること。
+  後半: 押し続けてレイヤ4を有効にし、その状態で左手(ペリフェラル)の
+  キーを打つと、レイヤ4側のバインディング(KP_MINUS)で解決されること。
+steps:
+  - {at: 0,   tap: 60, hold_ms: 80}  # 右: Enter を単打
+  - {at: 400, press: 60}             # 右: 押し続けてレイヤ4へ
+  - {at: 650, press: 13}             # 左: レイヤ4では KP_MINUS
+  - {at: 710, release: 13}
+  - {at: 760, release: 60}

@@ -1,0 +1,11 @@
+name: 半身をまたぐコンボ(右クリック)
+description: |
+  T(左/ペリフェラル)と Y(右/セントラル)の同時押しで mouse_R コンボが成立し、
+  マウス右ボタンが出ること。転送遅延なし = 理想状態。
+  コンボの既定判定時間は 50ms。
+peripheral_latency_ms: 0
+steps:
+  - {at: 0,  press: 17}  # 左: T
+  - {at: 8,  press: 18}  # 右: Y
+  - {at: 80, release: 17}
+  - {at: 88, release: 18}

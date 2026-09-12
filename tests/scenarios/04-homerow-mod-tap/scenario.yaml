@@ -1,0 +1,11 @@
+name: ホームロー修飾キー(mt1 LCTRL A)
+description: |
+  左手ホームポジションの A (&mt1 LCTRL A, balanced / tapping-term 280ms)。
+  前半: 短く叩いて A が出ること。
+  後半: 押したまま S を打ち、Ctrl 修飾付きになること。
+steps:
+  - {at: 0,   tap: 25, hold_ms: 60}  # 左: A を単打
+  - {at: 500, press: 25}             # 左: A を押したまま
+  - {at: 800, press: 26}             # 左: S
+  - {at: 860, release: 26}
+  - {at: 900, release: 25}
