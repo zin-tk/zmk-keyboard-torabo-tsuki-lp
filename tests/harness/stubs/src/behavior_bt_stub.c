@@ -2,7 +2,7 @@
  * &bt ビヘイビアのスタブ (PC テスト専用)
  *
  * ZMK は behavior_bt.c を CONFIG_ZMK_BLE=y のときだけビルドする。
- * native_posix_64 には BLE コントローラが無いため BLE は無効だが、
+ * native_sim には BLE コントローラが無いため BLE は無効だが、
  * キーマップが &bt を参照している以上 devicetree ノードは実体を必要とする。
  * ここでは実際の BLE 操作の代わりに、どの BT コマンドが発行されたかを
  * ログに出すだけのビヘイビアを提供する。

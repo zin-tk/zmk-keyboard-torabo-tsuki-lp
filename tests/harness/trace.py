@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from keycodes import name_of
 from layout import SIDE_LABEL, load_layout, read_layer_bindings
 
-# native_posix は "[00:00:00.100,000] <dbg> ..."、
+# native_sim は "[00:00:00.100,000] <dbg> ..."、
 # BabbleSim は "d_00: @00:00:00.100000  [00:00:00.100,000] <dbg> ..." で始まる。
 LOG_LINE = re.compile(
     r"^(?:d_\d+:\s+@[\d:.]+\s+)?"

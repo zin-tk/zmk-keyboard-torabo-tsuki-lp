@@ -2,7 +2,7 @@
 #
 # コンテナ内で動くテスト本体。
 #   1. シナリオ -> ZMK_CONFIG 一式を生成
-#   2. native_posix_64 向けにビルド
+#   2. native_sim 向けにビルド
 #   3. 実行してログを採取
 #   4. 期待値(expected.snapshot)と比較
 #
@@ -14,7 +14,7 @@ WORKSPACE=${ZMK_WORKSPACE:-/workspace}
 WORK_DIR=${ZMK_TEST_WORK:-/work}
 HARNESS_DIR="$REPO_ROOT/tests/harness"
 SCENARIOS_DIR="$REPO_ROOT/tests/scenarios"
-BOARD=native_posix_64
+BOARD=native_sim//zmk_test_mock
 RUN_TIMEOUT_SEC=120
 
 export PYTHONPATH="$HARNESS_DIR"

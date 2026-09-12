@@ -2,14 +2,15 @@
 # テスト環境(コンテナ/ボリューム)の共通設定。
 #
 # プロファイルは2種類。
-#   native ... 既定。native_posix_64 でキーマップ挙動を高速に確認する(Tier A)
+#   native ... 既定。native_sim でキーマップ挙動を高速に確認する(Tier A)
 #   split  ... nrf52_bsim + BabbleSim で BLE 分割そのものを再現する(Tier B)
 #              nrf52_bsim は 32bit x86 前提のため、Apple Silicon では
 #              Rosetta 経由の x86_64 コンテナを使う。
 set -euo pipefail
 
 # ZMK 公式 CI と同じビルドイメージ (west + Zephyr SDK 入り)
-IMAGE=${ZMK_TEST_IMAGE:-zmkfirmware/zmk-build-arm:3.5}
+# ZMK v0.4 は Zephyr 4.1 なので 3.5 タグでは通らない
+IMAGE=${ZMK_TEST_IMAGE:-zmkfirmware/zmk-build-arm:stable}
 
 PROFILE=${ZMK_TEST_PROFILE:-native}
 case "$PROFILE" in

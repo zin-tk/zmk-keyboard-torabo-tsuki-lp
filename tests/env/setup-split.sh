@@ -26,6 +26,8 @@ docker exec "$CONTAINER" bash -euc '
     west zephyr-export
 '
 
+docker exec "$CONTAINER" bash /zmk-config/tests/env/patch-zmk-native.sh
+
 echo "BabbleSim をビルドします(並列にすると依存順が崩れるため逐次実行)"
 docker exec "$CONTAINER" bash -euc 'cd /workspace/tools/bsim && make everything'
 

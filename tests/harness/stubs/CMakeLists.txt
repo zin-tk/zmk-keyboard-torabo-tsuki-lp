@@ -1,4 +1,4 @@
-# PC テスト(native_posix_64)専用のスタブ。実機ビルドには一切含まれない。
+# PC テスト(native_sim)専用のスタブ。実機ビルドには一切含まれない。
 if(NOT CONFIG_ZMK_BLE)
   zephyr_library_named(torabo_tsuki_pc_test_stubs)
   # ビヘイビア API のヘッダは ZMK 本体の app/include にあり、

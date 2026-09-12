@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""シナリオから native_posix_64 用の ZMK_CONFIG 一式を生成する。
+"""シナリオから native_sim 用の ZMK_CONFIG 一式を生成する。
 
 生成物は「実機と同じ config/keymap.keymap を include し、
 実機と同じマトリクストランスフォームを持ち、
@@ -66,6 +66,20 @@ CONFIG_ZMK_POINTING=y
 
 # コンボ・ホールドタップの判定ログを出す
 CONFIG_ZMK_LOG_LEVEL_DBG=y
+
+# config/keymap.keymap が使っているモジュール。
+# コンボは zmk,combos から runtime combo の既定値に移行済みなので、
+# これを切ると全コンボのテストが落ちる。
+CONFIG_ZMK_RUNTIME_COMBO=y
+CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS=16
+CONFIG_ZMK_RUNTIME_MACRO=y
+# 実機 (snippets/split-central/split-central.conf) と同じローカル ID 方式。
+# 既定の逐次採番だと ZMK 本体が読み取り専用セクションの
+# zmk_behavior_local_id_map に書き込んで落ちる (nrf52_bsim で顕在化)
+CONFIG_ZMK_BEHAVIOR_LOCAL_ID_TYPE_CRC16=y
+# 実機と同じ値。既定の 64 のままだと ZMK_RUNTIME_MACRO_MAX_BYTES が
+# クランプされ、Kconfig の警告でビルドが止まる
+CONFIG_ZMK_CUSTOM_SETTINGS_LARGE_VALUE_MAX_SIZE=256
 """
 
 
@@ -95,9 +109,9 @@ def main(argv: list[str] | None = None) -> int:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     write_if_changed(
-        args.out_dir / "native_posix_64.keymap", render_keymap(scenario, layout, events)
+        args.out_dir / "native_sim.keymap", render_keymap(scenario, layout, events)
     )
-    write_if_changed(args.out_dir / "native_posix_64.conf", CONF_TEMPLATE)
+    write_if_changed(args.out_dir / "native_sim.conf", CONF_TEMPLATE)
     return 0
 
 

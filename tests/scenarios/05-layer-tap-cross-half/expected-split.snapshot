@@ -1,6 +1,6 @@
 key press:   usage_page 0x07 keycode 0x28 implicit_mods 0x00 explicit_mods 0x00
 key release: usage_page 0x07 keycode 0x28 implicit_mods 0x00 explicit_mods 0x00
-layer: layer 4 state 1
+layer: layer 4 state 1 locked 0
 key press:   usage_page 0x07 keycode 0x56 implicit_mods 0x00 explicit_mods 0x00
 key release: usage_page 0x07 keycode 0x56 implicit_mods 0x00 explicit_mods 0x00
-layer: layer 4 state 0
+layer: layer 4 state 0 locked 0

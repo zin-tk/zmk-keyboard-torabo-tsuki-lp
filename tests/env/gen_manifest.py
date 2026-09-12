@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""config/west.yml から ZMK 本体の取得先だけを抜き出したテスト用マニフェストを作る。
+"""config/west.yml から ZMK 本体と、キーマップが使うモジュールだけを
+抜き出したテスト用マニフェストを作る。
 
-PC テストで使うのは ZMK コアのビヘイビア(kp/mt/lt/mo/mkp/macro/combo など)だけなので、
-実機用のモジュール(トラックボール、BLE 管理など)は取得しない。取得量と
-ビルド時間を抑えつつ、ZMK 本体のリビジョンは実機ビルドと必ず一致させる。
+実機用でもキーマップに出てこないもの(トラックボール、BLE 管理、診断など)は
+取得しない。取得量とビルド時間を抑えつつ、ZMK 本体と各モジュールの
+リビジョンは実機ビルドと必ず一致させる。
 
-キーマップが独自モジュールのビヘイビアを使い始めたら、そのモジュールを
-ここに追加する必要がある。
+キーマップが新しいモジュールのビヘイビアを使い始めたら、
+KEYMAP_MODULE_NAMES に名前を足す。
 """
 
 from __future__ import annotations
@@ -20,6 +21,16 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_MANIFEST = REPO_ROOT / "config" / "west.yml"
 ZMK_PROJECT_NAME = "zmk"
+
+# config/keymap.keymap が参照するモジュール。west.yml の定義をそのまま引き写す。
+KEYMAP_MODULE_NAMES = (
+    # 下の 2 つが設定の永続化に使う
+    "zmk-feature-custom-settings",
+    # &rmacro
+    "zmk-feature-runtime-macro",
+    # runtime_combo_defaults
+    "zmk-feature-runtime-combo",
+)
 
 
 class ManifestError(Exception):
@@ -43,16 +54,31 @@ def build_manifest(source_text: str) -> dict:
     if remote_name not in remotes:
         raise ManifestError(f"remote {remote_name!r} の定義が見つかりません")
 
-    project = {
-        "name": ZMK_PROJECT_NAME,
-        "remote": remote_name,
-        "revision": zmk["revision"],
-        "import": zmk.get("import", {"file": "app/west.yml"}),
-    }
+    selected = [
+        {
+            "name": ZMK_PROJECT_NAME,
+            "remote": remote_name,
+            "revision": zmk["revision"],
+            "import": zmk.get("import", {"file": "app/west.yml"}),
+        }
+    ]
+    used_remotes = [remote_name]
+
+    for name in KEYMAP_MODULE_NAMES:
+        module = next((p for p in projects if p.get("name") == name), None)
+        if module is None:
+            raise ManifestError(f"{SOURCE_MANIFEST} に {name} プロジェクトがありません")
+        module_remote = module.get("remote")
+        if module_remote not in remotes:
+            raise ManifestError(f"remote {module_remote!r} の定義が見つかりません")
+        selected.append(dict(module))
+        if module_remote not in used_remotes:
+            used_remotes.append(module_remote)
+
     return {
         "manifest": {
-            "remotes": [remotes[remote_name]],
-            "projects": [project],
+            "remotes": [remotes[name] for name in used_remotes],
+            "projects": selected,
             "self": {"path": "manifest"},
         }
     }
