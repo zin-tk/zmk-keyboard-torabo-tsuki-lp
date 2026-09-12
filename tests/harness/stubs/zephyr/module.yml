@@ -1,0 +1,3 @@
+name: torabo-tsuki-pc-test-stubs
+build:
+  cmake: .
