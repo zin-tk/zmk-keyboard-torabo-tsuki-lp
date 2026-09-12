@@ -17,7 +17,7 @@ export BSIM_OUT_PATH=${BSIM_OUT_PATH:-$WORKSPACE/tools/bsim}
 export BSIM_COMPONENTS_PATH=${BSIM_COMPONENTS_PATH:-$BSIM_OUT_PATH/components}
 HARNESS_DIR="$REPO_ROOT/tests/harness"
 SCENARIOS_DIR="$REPO_ROOT/tests/scenarios"
-BOARD=nrf52_bsim
+BOARD=nrf52_bsim//zmk_test_mock
 SNAPSHOT_NAME=expected-split.snapshot
 PHY_TIMEOUT_SEC=600
 
@@ -88,7 +88,8 @@ for scenario_dir in "${scenario_dirs[@]}"; do
     source "$gen_dir/sim.env"
 
     if ! build_half central "$build_dir" "$gen_dir" "$WORK_DIR/build-split-$name-central.log" \
-            -DCONFIG_ZMK_SPLIT_ROLE_CENTRAL=y; then
+            -DCONFIG_ZMK_SPLIT_ROLE_CENTRAL=y \
+            -DEXTRA_CONF_FILE="$gen_dir/central.conf"; then
         echo "FAIL: $name (セントラルのビルド失敗)"
         tail -25 "$WORK_DIR/build-split-$name-central.log"
         failed=1

@@ -4,6 +4,7 @@
 生成物:
   nrf52_bsim.keymap   セントラル(右)側。実機と同じキーマップ + 右半身の打鍵
   nrf52_bsim.conf     両側に効く設定
+  central.conf        セントラル(右)側にだけ効く設定
   peripheral.overlay  ペリフェラル(左)側の上書き(col-offset と 左半身の打鍵)
   sim.env             シミュレーション長などを実行スクリプトへ渡す
 
@@ -93,6 +94,39 @@ CONF_TEMPLATE = """\
 CONFIG_ZMK_SPLIT=y
 CONFIG_ZMK_POINTING=y
 CONFIG_ZMK_LOG_LEVEL_DBG=y
+
+# 実機と同じ初期化順序にするために必要。
+# ZMK は SYS_INIT で settings_register() したハンドラの h_commit で
+# 分割セントラルのスキャンを開始する。実機では bt_enable() (BT_SETTINGS=y) が
+# SYS_INIT 中に settings_subsys_init() を済ませるため登録が残るが、
+# nrf52_bsim はフラッシュが無く BT_SETTINGS が既定で無効になるため、
+# main() の settings_subsys_init() が動的ハンドラを消してしまい
+# 左右が永久に接続しない。
+CONFIG_BT_SETTINGS=y
+"""
+
+# セントラル側にだけ効かせる設定。
+# runtime macro / combo はソースを無条件にコンパイルする一方で、
+# 依存する ZMK のシンボル (zmk_behavior_queue_add,
+# zmk_keymap_highest_layer_active, as_zmk_keycode_state_changed 等) は
+# ZMK がセントラルでしかビルドしないため、ペリフェラルに入れるとリンクで落ちる。
+# 実機も同じ理由で snippets/split-central/split-central.conf に置いている。
+CENTRAL_CONF_TEMPLATE = """\
+# 自動生成ファイル - tests/harness/gen_split_case.py が作成。直接編集しない。
+
+# config/keymap.keymap が使っているモジュール (Tier A と同じ)。
+# コンボは zmk,combos から runtime combo の既定値に移行済みなので、
+# これを切ると全コンボのテストが落ちる。
+CONFIG_ZMK_RUNTIME_COMBO=y
+CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS=16
+CONFIG_ZMK_RUNTIME_MACRO=y
+# 実機 (snippets/split-central/split-central.conf) と同じローカル ID 方式。
+# 既定の逐次採番だと ZMK 本体が読み取り専用セクションの
+# zmk_behavior_local_id_map に書き込んで落ちる (nrf52_bsim で顕在化)
+CONFIG_ZMK_BEHAVIOR_LOCAL_ID_TYPE_CRC16=y
+# 実機と同じ値。既定の 64 のままだと ZMK_RUNTIME_MACRO_MAX_BYTES が
+# クランプされ、Kconfig の警告でビルドが止まる
+CONFIG_ZMK_CUSTOM_SETTINGS_LARGE_VALUE_MAX_SIZE=256
 """
 
 
@@ -140,6 +174,7 @@ def write_case(scenario: Scenario, layout: Layout, out_dir: Path) -> None:
         ),
     )
     write_if_changed(out_dir / "nrf52_bsim.conf", CONF_TEMPLATE)
+    write_if_changed(out_dir / "central.conf", CENTRAL_CONF_TEMPLATE)
     write_if_changed(
         out_dir / "sim.env", f"SIM_LENGTH_US={simulation_length_ms(scenario) * 1000}\n"
     )

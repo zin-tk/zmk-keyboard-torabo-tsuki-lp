@@ -511,7 +511,7 @@ layers:
   - ''
   - {type: held}
   - ''
-  - ''
+  - '&studio_unlock'
   - '&bt2'
   - {t: BT, h: '2'}
   - BT NXT

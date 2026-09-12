@@ -6,23 +6,23 @@ manifest:
       url-base: https://github.com/sekigon-gonnoc
     - name: cormoran
       url-base: https://github.com/cormoran
-    - name: mjmjm0101
-      url-base: https://github.com/mjmjm0101
   projects:
-#    - name: zmk
-#      remote: zmkfirmware
-#      revision: v0.3
-#      import: app/west.yml
-    # Required: Custom ZMK fork with studio protocol support
+    # ZMK v0.4 (Zephyr 4.1) + DYA Studio の Custom Studio Protocol 一式。
+    # main+custom-studio-protocol に fast-keymap / activity(idle,sleep の実行時変更) /
+    # battery threshold / wired transport を足した統合ブランチ。
+    # https://github.com/cormoran/zmk/wiki/Available-Custom-Studio-RPC-aware-Branches
     - name: zmk
       remote: cormoran
-      revision: v0.3-branch+custom-studio-protocol+ble
+      revision: main+dya
       import:
         file: app/west.yml
+
+    # --- ボード / ドライバ (torabo-tsuki LP 固有) ---
     - name: zmk-component-bmp-boost
       remote: sekigon-gonnoc
       import: west.yml
-      revision: v0.2
+      # master は Zephyr HWMv2 (board.yml) 形式。v0.2 は旧形式で v0.4 ではビルドできない
+      revision: master
     - name: zmk-feature-status-led
       remote: sekigon-gonnoc
       revision: main
@@ -33,19 +33,68 @@ manifest:
       remote: sekigon-gonnoc
     - name: zmk-feature-cdc-acm-bootloader-trigger
       remote: sekigon-gonnoc
-      revision: v0.2
+      revision: main
     - name: zmk-feature-non-lipo-battery-management
       remote: sekigon-gonnoc
       revision: main
+
+    # --- DYA Studio: コア (他モジュールの依存先) ---
+    # 設定の永続化バックエンド。runtime-macro/combo/input-processor が依存する
+    - name: zmk-feature-custom-settings
+      remote: cormoran
+      revision: main
+    # キーマップ読み込みの高速化と差分表示
+    - name: zmk-feature-fast-keymap
+      remote: cormoran
+      revision: main
+
+    # --- DYA Studio: Keymap / Macro / Combo タブ ---
+    - name: zmk-feature-runtime-macro
+      remote: cormoran
+      revision: main
+    - name: zmk-feature-runtime-combo
+      remote: cormoran
+      revision: main
+    # 押下キーのリアルタイム表示
+    - name: zmk-feature-input-stream
+      remote: cormoran
+      revision: main
+    # プレビューにトラックボール/ロータリーエンコーダを描画する
+    - name: zmk-feature-module-physical-layout
+      remote: cormoran
+      revision: main
+    # エンコーダの回転割り当てをレイヤーごとに Web から変更する
+    - name: zmk-behavior-runtime-sensor-rotate
+      remote: cormoran
+      revision: main
+
+    # --- DYA Studio: Trackball タブ ---
+    # ポインタ感度 / 回転 / スクロール / 軸スナップ / 自動レイヤー切替。
+    # センサードライバに依存しないため PAW3222 でも動作する
+    - name: zmk-module-runtime-input-processor
+      remote: cormoran
+      revision: main
+
+    # --- DYA Studio: Connection タブ ---
     - name: zmk-module-ble-management
       remote: cormoran
-      revision: zmk-v0.3.0.0
+      revision: main
+
+    # --- DYA Studio: Settings タブ ---
+    - name: zmk-module-settings-rpc
+      remote: cormoran
+      revision: main
+
+    # --- DYA Studio: Troubleshooting タブ ---
+    - name: zmk-feature-device-info
+      remote: cormoran
+      revision: main
+    - name: zmk-feature-watchdog
+      remote: cormoran
+      revision: main
     - name: zmk-module-battery-history
       remote: cormoran
       revision: main
       path: src/battery_history
-    - name: zmk-input-processor-scroll-inertia
-      remote: mjmjm0101
-      revision: main
   self:
     path: config

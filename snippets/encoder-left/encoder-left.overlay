@@ -1,0 +1,65 @@
+/*
+ * 左ペリフェラルの J101 (トラックボール/トラックパッド用端子) に
+ * EC11 互換ロータリーエンコーダを接続する構成。
+ *
+ * エンコーダ基板は J101 に対して逆向きに挿さるため、信号とピンの対応は
+ *   ENC_A -> P0.16 (SDIO)
+ *   ENC_B -> P0.19 (MOTION)
+ *   SW    -> P0.18 (SCLK)、共通端子は P0.20 (CS)
+ * となる。P0.16 / P0.18 / P0.20 を解放するため SPI0 と I2C0 を止めるので、
+ * このスニペットを付けた側にトラックボール / トラックパッドは載せられない。
+ */
+
+&spi0 { status = "disabled"; };
+&i2c0 { status = "disabled"; };
+
+&gpio0 {
+    /* SW の共通端子を常時 HIGH に固定し、kscan-gpio-direct で拾う。
+       1 列だけの kscan-gpio-matrix では idle 時に列が LOW になり、
+       押下時に行が変化せず割り込みが出ないため取りこぼす */
+    enc_sw_drive: enc_sw_drive {
+        gpio-hog;
+        gpios = <20 0>;
+        output-high;
+    };
+};
+
+&encoder {
+    a-gpios = <&gpio0 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+    b-gpios = <&gpio0 19 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+    status = "okay";
+};
+
+/ {
+    chosen {
+        zmk,kscan = <&kscan_enc_composite>;
+    };
+
+    kscan_enc_sw: kscan_enc_sw {
+        compatible = "zmk,kscan-gpio-direct";
+        input-gpios = <&gpio0 18 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+        wakeup-source;
+    };
+
+    /* SW を空きマトリクス座標 RC(4,10) に載せる。
+       L レイアウトでは最下段の右から 4 番目 = キー位置 62 になる */
+    kscan_enc_composite: kscan_enc_composite {
+        compatible = "zmk,kscan-composite";
+        rows = <5>;
+        columns = <14>;
+
+        matrix {
+            kscan = <&kscan0>;
+        };
+
+        enc_sw {
+            kscan = <&kscan_enc_sw>;
+            row-offset = <4>;
+            col-offset = <10>;
+        };
+    };
+};
+
+&physical_layout_s { kscan = <&kscan_enc_composite>; };
+&physical_layout_m { kscan = <&kscan_enc_composite>; };
+&physical_layout_l { kscan = <&kscan_enc_composite>; };
