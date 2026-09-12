@@ -1,0 +1,79 @@
+#include <dt-bindings/zmk/keys.h>
+#include <behaviors/runtime-sensor-rotate.dtsi>
+
+/*
+ * EC11 ノードは左右どちらのビルドでも status = "okay" にしておく。
+ *
+ * disabled にすると phandles 型の sensors プロパティから除外され
+ * ZMK_KEYMAP_SENSORS_LEN が 0 になる。するとセントラル側の
+ * behavior_sensor_rotate_common.c の remainder[0][layers] が零長配列になり、
+ * ペリフェラルからセンサーイベントが届いた瞬間に範囲外アクセスで
+ * HardFault → リセットループになる。
+ *
+ * ここで使う P0.24 / P0.25 は BMP Boost の gpio-map に含まれない未接続ピン。
+ * EC11 ドライバがプルアップ入力として初期化するだけで、安定 High のまま
+ * 疑似イベントは発生しない。トラックボールが SPI0 を使うセントラル側でも
+ * 競合しないようこのピンを選んでいる。
+ * 実機のピン (P0.16 / P0.19) は encoder-left.overlay が上書きする。
+ */
+/ {
+    encoder: encoder {
+        compatible = "alps,ec11";
+        a-gpios = <&gpio0 24 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+        b-gpios = <&gpio0 25 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+        steps = <12>;
+        status = "okay";
+    };
+
+    sensors: sensors {
+        compatible = "zmk,keymap-sensors";
+        sensors = <&encoder>;
+        triggers-per-rotation = <6>;
+    };
+
+    behaviors {
+        /*
+         * 回転時の動作。ここに書くのは「DYA Studio で何も設定していないとき」の
+         * 既定値で、レイヤーごとの実際の割り当ては Web から変更・保存できる。
+         */
+        rsr_enc: rsr_enc {
+            compatible = "zmk,behavior-runtime-sensor-rotate";
+            #sensor-binding-cells = <0>;
+            tap-ms = <5>;
+            cw-binding = <&kp C_VOLUME_UP>;
+            ccw-binding = <&kp C_VOLUME_DOWN>;
+        };
+    };
+
+    /* DYA Studio のキーマッププレビューにエンコーダを描画する。
+       座標は表示用で、実際の動作には影響しない */
+    rotary_encoders_layout: rotary_encoders_layout {
+        compatible = "cormoran,physical-layout-rotary-encoders";
+        display-name = "Rotary Encoder";
+        encoders = <&encoder_layout_0>;
+    };
+
+    encoder_layout_0: encoder_layout_0 {
+        compatible = "cormoran,physical-layout-rotary-encoder";
+        size = <120>;
+        x = <350>;
+        y = <580>;
+    };
+};
+
+/*
+ * 全レイヤーに同じビヘイビアを割り当てる。
+ * rsr_enc はレイヤーごとの割り当てを内部で持つため、キーマップ側は
+ * どのレイヤーも同じ参照でよい (割り当て自体は DYA Studio で切り替える)。
+ * sensor-bindings を持たないレイヤーがあると、そのレイヤーで
+ * エンコーダが無反応になるため、抜けが無いようにする。
+ */
+&{/keymap/layer_mac}      { sensor-bindings = <&rsr_enc>; };
+&{/keymap/layer_win}      { sensor-bindings = <&rsr_enc>; };
+&{/keymap/layer_mouse}    { sensor-bindings = <&rsr_enc>; };
+&{/keymap/layer_symbol}   { sensor-bindings = <&rsr_enc>; };
+&{/keymap/layer_3}        { sensor-bindings = <&rsr_enc>; };
+&{/keymap/layer_scroll}   { sensor-bindings = <&rsr_enc>; };
+&{/keymap/layer_function} { sensor-bindings = <&rsr_enc>; };
+&{/keymap/layer_BT}       { sensor-bindings = <&rsr_enc>; };
+&{/keymap/layer_8}        { sensor-bindings = <&rsr_enc>; };

@@ -1,0 +1,4 @@
+name: encoder-left
+append:
+  EXTRA_DTC_OVERLAY_FILE: encoder-left.overlay
+  EXTRA_CONF_FILE: encoder-left.conf
