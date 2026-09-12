@@ -2,3 +2,21 @@
     status = "okay";
     device = <&pointing_device>;
 };
+
+/ {
+    /*
+     * DYA Studio のキーマッププレビューにトラックボールを描画し、
+     * クリックすると Trackball タブの該当 processor に飛べるようにする。
+     * 座標は表示用で、実際の動作には影響しない。
+     */
+    trackball_layout: trackball_layout {
+        compatible = "cormoran,physical-layout-trackball";
+        display-name = "Trackball";
+        size = <180>;
+        x = <1200>;
+        y = <580>;
+
+        linked-device-identifiers = "mouse", "scroll";
+        linked-subsystems = "cormoran_rip", "cormoran_rip";
+    };
+};
