@@ -9,8 +9,9 @@ ZMK Studio 互換の Web UI で、キーマップに加えてマクロ・コン�
 BLE 接続・各種設定を実機に書き込まずに変更できます。
 Chrome / Edge で USB (Web Serial) または Bluetooth (Web Bluetooth) 接続します。
 
-BLE で接続するには、BT レイヤーの `&studio_unlock` を押してロックを解除してください
-(USB 接続でも編集前に解除が必要です)。
+ロック (`CONFIG_ZMK_STUDIO_LOCKING`) は無効にしてあるので、接続すればそのまま編集できます。
+ただし BLE 接続時は、BT レイヤーの `&studio_unlock` を押してキーボードを
+ダイレクトアドバタイジング状態にしないとブラウザから見つけられません。
 
 有効にしているタブと機能:
 
