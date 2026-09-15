@@ -103,6 +103,27 @@ CONFIG_ZMK_LOG_LEVEL_DBG=y
 # main() の settings_subsys_init() が動的ハンドラを消してしまい
 # 左右が永久に接続しない。
 CONFIG_BT_SETTINGS=y
+
+# 設定の永続化を実機と同じ NVS バックエンドで動かす。
+# これが無いと Zephyr が CONFIG_SETTINGS_NONE=y を選び、settings_save_one() が
+# 黙って捨てられるため、BLE プロファイル・ボンド・activity 設定など
+# 「NVS に残った状態」に起因する不具合を一切再現できない。
+# nrf52_bsim.dts は flash0 と storage_partition(512K) を既に持っているので
+# Kconfig を立てるだけでよい (Zephyr 自身の tests/bsim/bluetooth/host/gatt/ccc_store
+# や host/id/settings が同じ構成を使っている)。
+CONFIG_FLASH=y
+CONFIG_FLASH_MAP=y
+CONFIG_NVS=y
+CONFIG_SETTINGS=y
+CONFIG_SETTINGS_NVS=y
+# settings API を使う分だけシステムワークキューのスタックを積む (上記 Zephyr テストと同値)
+CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE=2048
+
+# 実機 (torabo_tsuki_lp_{left,right}.conf) と同じく左右とも有効にする。
+# ZMK_WATCHDOG_FREEZE_DETECT が既定で付いてきて、task_wdt チャンネルと
+# 5 秒周期のフィード work が動く。実機ではこれがフリーズ誤検出による
+# 再起動ループを起こしていたため、その再現用。
+CONFIG_ZMK_WATCHDOG=y
 """
 
 # セントラル側にだけ効かせる設定。

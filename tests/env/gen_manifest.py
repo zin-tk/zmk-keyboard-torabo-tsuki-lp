@@ -30,6 +30,9 @@ KEYMAP_MODULE_NAMES = (
     "zmk-feature-runtime-macro",
     # runtime_combo_defaults
     "zmk-feature-runtime-combo",
+    # キーマップは使わないが、実機で再起動ループを起こしていたフリーズ検出
+    # (task_wdt + 周期フィード) を再現するために必要
+    "zmk-feature-watchdog",
 )
 
 
