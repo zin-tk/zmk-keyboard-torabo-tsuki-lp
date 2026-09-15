@@ -165,6 +165,15 @@ for scenario_dir in "${scenario_dirs[@]}"; do
         continue
     fi
 
+    # スナップショットは ZMK 内部のログなので、HOG が壊れていても通ってしまう。
+    # ホストに実際にレポートが届いたことは別に確かめる。
+    if ! grep -q "HOST: report " "$build_dir/host.log"; then
+        echo "FAIL: $name (ホストに HID レポートが届いていません)"
+        echo "  ホスト: $build_dir/host.log"
+        failed=1
+        continue
+    fi
+
     actual="$build_dir/actual.snapshot"
     sed -n -f "$HARNESS_DIR/events.patterns" "$build_dir/central.log" > "$actual"
 

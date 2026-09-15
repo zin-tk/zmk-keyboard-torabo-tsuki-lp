@@ -11,7 +11,7 @@
 | | 中身 | 速さ | 使いどころ |
 | --- | --- | --- | --- |
 | **Tier A** `./tests/run.sh` | セントラル1台(`native_sim`)に両半身の打鍵を流し込む。転送遅延は任意の値で模擬 | 全シナリオで 15 秒 | 普段の確認。キーマップの挙動はこれで足りる |
-| **Tier B** `./tests/run-split.sh` | 左右を**別プロセス**で起動し、BabbleSim の仮想2.4GHz電波で実際に BLE 接続させる(`nrf52_bsim`) | 全シナリオ 1〜2 分。キーマップ変更後は2台分のビルドが走り数分〜10分 | BLE 分割の転送そのものを疑うとき |
+| **Tier B** `./tests/run-split.sh` | 左右とホスト役(PC 相当)を**別プロセス**で起動し、BabbleSim の仮想2.4GHz電波で実際に BLE 接続させる(`nrf52_bsim`) | 全シナリオ 1〜2 分。キーマップ変更後は2台分のビルドが走り数分〜10分 | BLE 分割の転送そのものや、ホストとの接続性を疑うとき |
 
 シナリオ(打鍵の台本)は両者で共通。同じ操作を両方で流して結果を見比べられる。
 実際、遅延を注入していないシナリオでは Tier A と Tier B の出力は一致する
@@ -36,7 +36,8 @@ Tier A が再現しないもの:
 
 - BLE の接続・ペアリング・遅延のゆらぎ(これは Tier B の担当)
 - トラックボール / トラックパッドなどのポインティングデバイス
-- USB / BLE への実際の HID 送信(ログ上の HID イベントで代替している)
+- USB / BLE への実際の HID 送信(ログ上の HID イベントで代替している。
+  BLE 側は Tier B のホスト役が実際に受け取って確かめている)
 - 電池、ステータス LED、スリープ
 
 `&bt`(Bluetooth ビヘイビア)は PC 上に BLE コントローラが無いため、
@@ -109,6 +110,30 @@ t=     8ms  右 KEY   R(中央) pos 18 (1,5) 押下  [L0 &kp Y]
 t=     8ms  右 MOUSE Mouse buttons set to 0x02
 ```
 
+### ホスト役 (PC 相当)
+Tier B は左右の 2 台に加えて、**ホスト役を 1 台**動かしている
+(`tests/harness/ble_host/`)。ZMK は使わない素の Zephyr BLE セントラルで、
+
+1. スキャンする
+2. HID サービス(0x1812)を広告している相手を見つける
+3. 接続する
+4. ペアリング(暗号化)まで進める
+5. HID レポート特性(0x2A4D)を購読し、届いたレポートを出力する
+
+を行う。各行は `HOST: ` で始まり `/work/build-split/<名前>/host.log` に残る:
+
+```
+HOST: advertisement from FD:9E:B2:48:47:39 (random) (rssi -59)
+HOST: connected to FD:9E:B2:48:47:39 (random)
+HOST: security level 2
+HOST: subscribed to 3 report(s)
+HOST: report 0x001d (8 bytes): 00 00 14 00 00 00 00 00
+```
+
+期待値スナップショットは ZMK 内部のログから作るので、HOG が壊れていても通る。
+そのためホスト役については **接続できたか** と **レポートが届いたか** を
+別途チェックしており、どちらかが欠けるとシナリオは失敗する。
+
 ## シナリオの書き方
 
 `tests/scenarios/<名前>/scenario.yaml` を作るだけ。
@@ -158,6 +183,7 @@ python3 tests/harness/show_layout.py 4   # レイヤ 4
 | `tests/harness/gen_split_case.py` | Tier B 用(セントラル/ペリフェラル 2台分)を生成 |
 | `tests/harness/run_tests.sh` | Tier A のビルド・実行・比較 |
 | `tests/harness/run_split_tests.sh` | Tier B のビルド・BabbleSim 実行・比較 |
+| `tests/harness/ble_host/` | Tier B のホスト役(PC 相当の最小 BLE セントラル) |
 | `tests/harness/trace.py` | ログ → 時系列表示 |
 | `tests/harness/events.patterns` | ログから期待値比較に使う行を抜き出す規則 |
 | `tests/harness/stubs/` | Tier A 専用スタブ(`&bt`) |
@@ -179,4 +205,4 @@ python3 tests/harness/show_layout.py 4   # レイヤ 4
   `/work/build-<シナリオ名>.log` (Tier B は `/work/build-split-<名前>-{central,peripheral}.log`) を見る
 - 生成されたビルド設定 → `/work/gen/<シナリオ名>/` (Tier B は `/work/gen-split/<名前>/`)
 - 実行時のログ全文 → `/work/build/<シナリオ名>/full.log`
-  (Tier B は `/work/build-split/<名前>/{central,peripheral,phy}.log`)
+  (Tier B は `/work/build-split/<名前>/{central,peripheral,host,phy}.log`)
