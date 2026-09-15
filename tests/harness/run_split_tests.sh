@@ -2,8 +2,9 @@
 #
 # BLE 分割エミュレーション(Tier B)の本体。コンテナ内で動く。
 #   1. シナリオ -> セントラル/ペリフェラル 2台分のビルド設定を生成
-#   2. nrf52_bsim 向けに 2 台分をビルド
-#   3. BabbleSim の仮想2.4GHz電波上で 2 台を同時に走らせる
+#   2. nrf52_bsim 向けに 2 台分 + ホスト役をビルド
+#   3. BabbleSim の仮想2.4GHz電波上で 3 台を同時に走らせる
+#      (左右に加えて、PC/スマホ相当のホスト役を 1 台)
 #   4. セントラル側のログを期待値と比較
 #
 # 通常はホスト側の tests/run-split.sh から呼ばれる。
@@ -18,6 +19,10 @@ export BSIM_COMPONENTS_PATH=${BSIM_COMPONENTS_PATH:-$BSIM_OUT_PATH/components}
 HARNESS_DIR="$REPO_ROOT/tests/harness"
 SCENARIOS_DIR="$REPO_ROOT/tests/scenarios"
 BOARD=nrf52_bsim//zmk_test_mock
+# ホスト役は ZMK を使わない素の Zephyr アプリなので、mock kscan の付いた
+# バリアントではなく Zephyr 標準の nrf52_bsim をそのまま使う。
+HOST_BOARD=nrf52_bsim
+HOST_SRC_DIR="$REPO_ROOT/tests/harness/ble_host"
 SNAPSHOT_NAME=expected-split.snapshot
 PHY_TIMEOUT_SEC=600
 
@@ -58,6 +63,16 @@ else
             exit 2
         fi
     done
+fi
+
+# ホスト役はシナリオに依存しないので、全シナリオで 1 つの成果物を使い回す。
+host_build_dir="$WORK_DIR/build-split/_ble_host"
+host_build_log="$WORK_DIR/build-split-ble-host.log"
+if ! (cd "$WORKSPACE" && west build -s "$HOST_SRC_DIR" -d "$host_build_dir" -b "$HOST_BOARD" \
+        "${pristine_arg[@]+"${pristine_arg[@]}"}") > "$host_build_log" 2>&1; then
+    echo "ホスト役のビルドに失敗しました: $host_build_log" >&2
+    tail -25 "$host_build_log" >&2
+    exit 1
 fi
 
 build_half() {
@@ -105,8 +120,10 @@ for scenario_dir in "${scenario_dirs[@]}"; do
 
     central_exe="${sim_id}_central.exe"
     peripheral_exe="${sim_id}_peripheral.exe"
+    host_exe="${sim_id}_host.exe"
     cp "$build_dir/central/zephyr/zmk.exe" "$BSIM_OUT_PATH/bin/$central_exe"
     cp "$build_dir/peripheral/zephyr/zmk.exe" "$BSIM_OUT_PATH/bin/$peripheral_exe"
+    cp "$host_build_dir/zephyr/zephyr.exe" "$BSIM_OUT_PATH/bin/$host_exe"
 
     cd "$BSIM_OUT_PATH/bin"
     "./$central_exe" -d=0 -s="$sim_id" > "$build_dir/central.log" 2>&1 &
@@ -115,12 +132,14 @@ for scenario_dir in "${scenario_dirs[@]}"; do
     handbrake_pid=$!
     "./$peripheral_exe" -d=2 -s="$sim_id" > "$build_dir/peripheral.log" 2>&1 &
     peripheral_pid=$!
+    "./$host_exe" -d=3 -s="$sim_id" > "$build_dir/host.log" 2>&1 &
+    host_pid=$!
 
-    timeout "$PHY_TIMEOUT_SEC" ./bs_2G4_phy_v1 -s="$sim_id" -D=3 \
+    timeout "$PHY_TIMEOUT_SEC" ./bs_2G4_phy_v1 -s="$sim_id" -D=4 \
         -sim_length="$SIM_LENGTH_US" > "$build_dir/phy.log" 2>&1
     phy_status=$?
-    kill "$central_pid" "$handbrake_pid" "$peripheral_pid" 2>/dev/null
-    wait "$central_pid" "$handbrake_pid" "$peripheral_pid" 2>/dev/null
+    kill "$central_pid" "$handbrake_pid" "$peripheral_pid" "$host_pid" 2>/dev/null
+    wait "$central_pid" "$handbrake_pid" "$peripheral_pid" "$host_pid" 2>/dev/null
 
     if [ $phy_status -eq 124 ]; then
         echo "FAIL: $name (シミュレーションがタイムアウト)"
@@ -133,6 +152,15 @@ for scenario_dir in "${scenario_dirs[@]}"; do
         echo "FAIL: $name (左右が BLE 接続できていません)"
         echo "  セントラル: $build_dir/central.log"
         echo "  ペリフェラル: $build_dir/peripheral.log"
+        failed=1
+        continue
+    fi
+
+    # ホスト役から見て、キーボードが広告を出して接続できているか。
+    # 実機で起きた「ホストと BLE 接続できない」はここで落ちる。
+    if ! grep -q "HOST: connected" "$build_dir/host.log"; then
+        echo "FAIL: $name (ホストが BLE 接続できていません)"
+        echo "  ホスト: $build_dir/host.log"
         failed=1
         continue
     fi
