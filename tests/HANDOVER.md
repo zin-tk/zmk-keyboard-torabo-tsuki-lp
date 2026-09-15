@@ -1,6 +1,6 @@
 # Tier B (BLE 分割エミュレーション) 整備 — 引き継ぎ
 
-作成: 2026-09-16 / 対象: 別セッションで継続する人
+作成: 2026-09-16 / 更新: 2026-09-16 / 対象: 別セッションで継続する人
 
 ## なぜこの作業が要るのか
 
@@ -12,7 +12,7 @@ Tier B は「キーマップの打鍵結果を確認する」目的で作られ�
 BLE の接続性・安定性・設定永続化を検証する作りになっていない。
 ここを埋めれば、以降この手の問題は実機に焼かずに切り分けられる。
 
-## このセッションでやったこと (完了)
+## やったこと (完了)
 
 ### 1. watchdog モジュールを Tier B に追加
 - `tests/env/gen_manifest.py` の `KEYMAP_MODULE_NAMES` に `zmk-feature-watchdog` を追加
@@ -27,6 +27,20 @@ BLE の接続性・安定性・設定永続化を検証する作りになって�
 - 確認: `CONFIG_SETTINGS_NONE is not set` / `SETTINGS_NVS_SECTOR_COUNT=8` (実機と同数)
 - 既存シナリオ `01-basic-typing` は PASS のまま (回帰なし)
 
+### 3. ホスト役 (4 台目) を追加 ← 旧「残作業1」
+- `tests/harness/ble_host/` に、ZMK を使わない素の Zephyr BLE セントラルを新設
+- `run_split_tests.sh` を `-D=4` にし、`-d=3` でホスト役を起動
+- スキャン → HID サービス(0x1812)の広告を検出 → 接続 → ペアリング →
+  レポート特性(0x2A4D)を購読 → レポート受信、まで通る
+- 「接続できたか」と「レポートが届いたか」をシナリオの合否に含めた
+
+**この過程で見つかった不具合**: 購読するまで ZMK は
+`send_keyboard_report_callback: Error notifying -22` を出し続けていた。
+スナップショットは ZMK 内部のログから作るので気づけなかった。
+現在は全シナリオで 0 件。
+
+全 5 シナリオ PASS。実機ではまだ検証していない。
+
 ## 調査で判明した、整備に使える事実
 
 | 事実 | 出典 |
@@ -39,22 +53,7 @@ BLE の接続性・安定性・設定永続化を検証する作りになって�
 
 ## 残作業 (優先順)
 
-### 1. ホスト役 (4 台目) の追加 ← 最重要
-
-**なぜ**: 現行は左右の分割接続しか見ていない。今回の症状「**ホスト**に BLE 接続できない」を
-再現する手段が無い。これが無いと BLE 接続性の問題は永久に実機頼りになる。
-
-**方法**:
-- `run_split_tests.sh` の `-D=3` を `-D=4` にし、`-d=3` でホスト役を起動
-- ホスト役は Zephyr の `tests/bsim/bluetooth/host/central` 相当を流用するか、
-  最小の GATT クライアントを自作する
-- 検証したいのは「広告が見えるか → 接続できるか → ペアリングできるか →
-  HOG を購読してキー入力が届くか」
-
-**注意**: HID ホストとして完全に振る舞う必要はない。まず「広告を見つけて接続する」だけで
-今回の症状は再現できる。
-
-### 2. フラッシュ状態の注入機構
+### 1. フラッシュ状態の注入機構
 
 **なぜ**: 「NVS に残った値が原因か」を検証できるようになる。今回の調査では
 `ble/active_profile` が範囲外という仮説を立てたが、実機の Studio 画面を見るまで
@@ -63,7 +62,7 @@ BLE の接続性・安定性・設定永続化を検証する作りになって�
 **方法**: `-flash=<file>` でバッキングファイルを与え、既知の状態を作って起動する。
 シナリオ側から「この設定が NVS に入っている状態で起動」を指定できるようにする。
 
-### 3. 実機と同じモジュール構成
+### 2. 実機と同じモジュール構成
 
 **現状**: `gen_manifest.py` の `KEYMAP_MODULE_NAMES` は 4 つだけ
 (custom-settings / runtime-macro / runtime-combo / watchdog)。
@@ -75,7 +74,7 @@ battery-history / sensor-rotate
 モジュールが増えると取得量とビルド時間が増えるので、
 「キーマップ用」と「実機フル構成」をプロファイルで切り替えられるようにするのが望ましい。
 
-### 4. 実機 conf との同期
+### 3. 実機 conf との同期
 
 **現状**: `gen_split_case.py` が独自の最小 conf を持ち、実機の
 `boards/shields/torabo_tsuki_lp/*.conf` や `snippets/split-central/split-central.conf`
@@ -99,7 +98,9 @@ export ZMK_TEST_WORK_VOLUME=torabo-tsuki-zmk-work-x86-dya
 ```
 
 - ワークスペース: コンテナ内 `/workspace` (zmk, zephyr, BabbleSim, 取得済みモジュール)
-- 生成物: `/work/gen-split/<シナリオ>/`、`/work/build-split/<シナリオ>/{central,peripheral,phy}.log`
+- 生成物: `/work/gen-split/<シナリオ>/`、
+  `/work/build-split/<シナリオ>/{central,peripheral,host,phy}.log`
+- ホスト役の成果物は `/work/build-split/_ble_host/` (シナリオ非依存。1 回だけビルドされる)
 - リポジトリは `/zmk-config` に bind される
 
 ## 既知の罠
@@ -172,11 +173,12 @@ export ZMK_TEST_WORK_VOLUME=torabo-tsuki-zmk-work-x86-dya
 (c) v0.4 が既存のハードマージンを食い潰した (定量できず不明)。
 **上記 1〜3 の測定でここを切り分けるのが先**。
 
-## 現在の未コミット変更
+## コミット済みの変更
 
-```
-tests/env/gen_manifest.py        +3行  (watchdog を取得対象に追加)
-tests/harness/gen_split_case.py +21行  (CONFIG_ZMK_WATCHDOG=y と NVS settings 一式)
-```
+| コミット | 内容 |
+| --- | --- |
+| `3a8cb44` | watchdog モジュールと NVS settings 一式 (上の完了 1・2) |
+| `58db91a` | ホスト役 (4 台目) の追加 |
+| `7c3f40d` | ホスト役の HOG 購読とレポート到達チェック |
 
-どちらも `01-basic-typing` が PASS することを確認済み。
+ブランチ: `claude/keyboard-lock-handover-tests-b762b4`
