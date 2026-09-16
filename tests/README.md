@@ -155,6 +155,31 @@ strings flash/central.bin | grep -E '^(bt|ble)/'
 # ble/profiles/0, bt/keys/<相手>, bt/ccc/<相手> など
 ```
 
+### 実機との構成の合わせ方
+**Tier B は Kconfig が実機とズレると問題が再現しない。** 一度それで実機に
+10 回近く書き込む羽目になったので、写しを持たず実機の定義を直接読む形にしてある。
+
+| 何を | どこから |
+| --- | --- |
+| モジュール構成 | `config/west.yml`。Tier B は `full` プロファイル(= cormoran リモートのモジュール全部)、Tier A は `keymap` プロファイル |
+| セントラルの Kconfig | `boards/shields/torabo_tsuki_lp/torabo_tsuki_lp_right.conf` + `snippets/split-central/split-central.conf` |
+| ペリフェラルの Kconfig | `boards/shields/torabo_tsuki_lp/torabo_tsuki_lp_left.conf` |
+| キー位置 | `boards/shields/torabo_tsuki_lp/torabo_tsuki_lp.dtsi` |
+
+実機の conf は `gen_split_case.py` がそのまま取り込み、**nrf52_bsim に載らない
+項目だけ** `SKIP_SYMBOLS` で落とす(電池・LED・USB ブートローダなど、
+取得していないハードウェア向けモジュールのもの)。落とす項目を増やすときは
+理由をコメントに書くこと。
+
+bsim で成立させるためだけの設定 (`CONFIG_BT_SETTINGS` や NVS 一式) は
+`nrf52_bsim.conf` に分けてあるので、実機由来かどうかは生成物を見れば分かる。
+
+モジュール構成は環境変数で切り替えられる:
+
+```bash
+ZMK_TEST_MODULE_PROFILE=keymap ./tests/run-split.sh   # 取得量を減らしたいとき
+```
+
 ## シナリオの書き方
 
 `tests/scenarios/<名前>/scenario.yaml` を作るだけ。
@@ -202,6 +227,7 @@ python3 tests/harness/show_layout.py 4   # レイヤ 4
 | `tests/harness/scenario.py` | シナリオ → kscan モックのイベント列(転送遅延・左右分割もここ) |
 | `tests/harness/gen_case.py` | Tier A 用のビルド設定を生成 |
 | `tests/harness/gen_split_case.py` | Tier B 用(セントラル/ペリフェラル 2台分)を生成 |
+| `tests/env/gen_manifest.py` | 実機の `config/west.yml` からテスト用マニフェストを生成 |
 | `tests/harness/run_tests.sh` | Tier A のビルド・実行・比較 |
 | `tests/harness/run_split_tests.sh` | Tier B のビルド・BabbleSim 実行・比較 |
 | `tests/harness/ble_host/` | Tier B のホスト役(PC 相当の最小 BLE セントラル) |

@@ -181,7 +181,8 @@ for scenario_dir in "${scenario_dirs[@]}"; do
         continue
     fi
     if ! build_half peripheral "$build_dir" "$gen_dir" "$WORK_DIR/build-split-$name-peripheral.log" \
-            -DEXTRA_DTC_OVERLAY_FILE="$gen_dir/peripheral.overlay"; then
+            -DEXTRA_DTC_OVERLAY_FILE="$gen_dir/peripheral.overlay" \
+            -DEXTRA_CONF_FILE="$gen_dir/peripheral.conf"; then
         echo "FAIL: $name (ペリフェラルのビルド失敗)"
         tail -25 "$WORK_DIR/build-split-$name-peripheral.log"
         failed=1

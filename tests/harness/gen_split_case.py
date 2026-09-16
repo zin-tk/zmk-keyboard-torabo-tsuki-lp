@@ -3,13 +3,18 @@
 
 生成物:
   nrf52_bsim.keymap   セントラル(右)側。実機と同じキーマップ + 右半身の打鍵
-  nrf52_bsim.conf     両側に効く設定
-  central.conf        セントラル(右)側にだけ効く設定
+  nrf52_bsim.conf     bsim で成立させるためだけの設定(両側)
+  central.conf        実機のセントラル(右)と同じ設定
+  peripheral.conf     実機のペリフェラル(左)と同じ設定
   peripheral.overlay  ペリフェラル(左)側の上書き(col-offset と 左半身の打鍵)
   sim.env             シミュレーション長などを実行スクリプトへ渡す
 
 実機と同じく、各半身の kscan は自分の基板の座標(0..6列)を出し、
 col-offset 付きのトランスフォームが全体のキー位置へ変換する。
+
+Kconfig は実機の conf をそのまま読んで使う。手書きの写しを持つと実機と
+ズレて問題が再現しなくなるため (実際に一度そうなった)。bsim に載らない
+ハードウェア向けの項目だけを SKIP_SYMBOLS で落とす。
 """
 
 from __future__ import annotations
@@ -23,6 +28,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generated import write_if_changed
 from layout import CENTRAL_SIDE, KEYMAP_FILE, PERIPHERAL_SIDE, Layout, load_layout
 from scenario import MockEvent, Scenario, load_scenario, to_mock_events_by_side
+
+# 実機のビルド構成 (build.yaml)。右がセントラル、左がペリフェラル。
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SHIELD_CONF_DIR = REPO_ROOT / "boards" / "shields" / "torabo_tsuki_lp"
+CENTRAL_CONF_SOURCES = (
+    SHIELD_CONF_DIR / "torabo_tsuki_lp_right.conf",
+    REPO_ROOT / "snippets" / "split-central" / "split-central.conf",
+)
+PERIPHERAL_CONF_SOURCES = (SHIELD_CONF_DIR / "torabo_tsuki_lp_left.conf",)
+
+# nrf52_bsim には載らないので実機 conf から落とす設定。
+# いずれも取得していないハードウェア向けモジュール (sekigon-gonnoc) のもので、
+# 残すと「未定義シンボルへの代入」の警告になるだけで何も効かない。
+SKIP_SYMBOLS = {
+    # zmk-feature-cdc-acm-bootloader-trigger: USB がない
+    "CONFIG_ZMK_CDC_ACM_BOOTLOADER_TRIGGER",
+    # zmk-feature-status-led: LED の devicetree ノードがない
+    "CONFIG_ZMK_STATUS_LED",
+    # zmk-feature-non-lipo-battery-management: 電池がない
+    "CONFIG_ZMK_NON_LIPO_MIN_MV",
+    "CONFIG_ZMK_NON_LIPO_LOW_MV",
+    # 電池センサーが無いので ZMK_BATTERY_REPORTING が立たず、
+    # zmk_peripheral_battery_state_changed イベントがコンパイルされない。
+    # 残すとセントラルのリンクで undefined reference になる
+    "CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_PROXY",
+    "CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING",
+}
 
 # BLE のペアリングが終わるまで待つ必要があるため、Tier A より長めに置く。
 SPLIT_START_OFFSET_MS = 5000
@@ -39,13 +71,28 @@ CENTRAL_KEYMAP_TEMPLATE = """\
 
 #include <dt-bindings/zmk/matrix_transform.h>
 #include <dt-bindings/zmk/kscan_mock.h>
+#include <physical_layouts.dtsi>
 
 /* 実機と同じキーマップをそのまま使う */
 #include "{keymap_path}"
 
 / {{
     chosen {{
-        zmk,matrix-transform = &pc_test_transform;
+        zmk,physical-layout = &pc_test_layout;
+    }};
+
+    /*
+     * 実機と同じく物理レイアウト経由でトランスフォームを指す。
+     * chosen zmk,matrix-transform を直接指すと ZMK_STUDIO の BUILD_ASSERT
+     * (physical_layouts.c) に引っかかる。
+     */
+    pc_test_layout: pc_test_layout {{
+        compatible = "zmk,physical-layout";
+        display-name = "PC Test";
+        transform = <&pc_test_transform>;
+        keys
+{keys_property}
+            ;
     }};
 
     /* 実機シールドの {transform_label} と同じ内容 */
@@ -116,39 +163,37 @@ CONFIG_FLASH_MAP=y
 CONFIG_NVS=y
 CONFIG_SETTINGS=y
 CONFIG_SETTINGS_NVS=y
-# settings API を使う分だけシステムワークキューのスタックを積む (上記 Zephyr テストと同値)
-CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE=2048
-
-# 実機 (torabo_tsuki_lp_{left,right}.conf) と同じく左右とも有効にする。
-# ZMK_WATCHDOG_FREEZE_DETECT が既定で付いてきて、task_wdt チャンネルと
-# 5 秒周期のフィード work が動く。実機ではこれがフリーズ誤検出による
-# 再起動ループを起こしていたため、その再現用。
-CONFIG_ZMK_WATCHDOG=y
 """
 
-# セントラル側にだけ効かせる設定。
-# runtime macro / combo はソースを無条件にコンパイルする一方で、
-# 依存する ZMK のシンボル (zmk_behavior_queue_add,
-# zmk_keymap_highest_layer_active, as_zmk_keycode_state_changed 等) は
-# ZMK がセントラルでしかビルドしないため、ペリフェラルに入れるとリンクで落ちる。
-# 実機も同じ理由で snippets/split-central/split-central.conf に置いている。
-CENTRAL_CONF_TEMPLATE = """\
+# 実機の conf を読むときの注記。生成ファイルの先頭に付ける。
+SIDE_CONF_HEADER = """\
 # 自動生成ファイル - tests/harness/gen_split_case.py が作成。直接編集しない。
-
-# config/keymap.keymap が使っているモジュール (Tier A と同じ)。
-# コンボは zmk,combos から runtime combo の既定値に移行済みなので、
-# これを切ると全コンボのテストが落ちる。
-CONFIG_ZMK_RUNTIME_COMBO=y
-CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS=16
-CONFIG_ZMK_RUNTIME_MACRO=y
-# 実機 (snippets/split-central/split-central.conf) と同じローカル ID 方式。
-# 既定の逐次採番だと ZMK 本体が読み取り専用セクションの
-# zmk_behavior_local_id_map に書き込んで落ちる (nrf52_bsim で顕在化)
-CONFIG_ZMK_BEHAVIOR_LOCAL_ID_TYPE_CRC16=y
-# 実機と同じ値。既定の 64 のままだと ZMK_RUNTIME_MACRO_MAX_BYTES が
-# クランプされ、Kconfig の警告でビルドが止まる
-CONFIG_ZMK_CUSTOM_SETTINGS_LARGE_VALUE_MAX_SIZE=256
+#
+# 実機の conf をそのまま取り込んだもの。手で書き写すと実機とズレるため、
+# 中身を変えたいときは元ファイルの方を直すこと。
+# 取り込み元:
+{sources}
 """
+
+
+def read_real_conf(sources: tuple[Path, ...]) -> str:
+    """実機の conf を連結する。bsim に載らない項目だけ落とす。"""
+    chunks: list[str] = []
+    for source in sources:
+        if not source.exists():
+            raise FileNotFoundError(f"実機の conf が見つかりません: {source}")
+        kept = [
+            line
+            for line in source.read_text(encoding="utf-8").splitlines()
+            if line.split("=", 1)[0].strip() not in SKIP_SYMBOLS
+        ]
+        rel = source.relative_to(REPO_ROOT)
+        chunks.append(f"# ----- {rel} -----\n" + "\n".join(kept).strip() + "\n")
+
+    header = SIDE_CONF_HEADER.format(
+        sources="\n".join(f"#   {s.relative_to(REPO_ROOT)}" for s in sources)
+    )
+    return header + "\n" + "\n".join(chunks)
 
 
 def _render_events(events: list[MockEvent]) -> str:
@@ -184,6 +229,7 @@ def write_case(scenario: Scenario, layout: Layout, out_dir: Path) -> None:
             half_columns=layout.columns - layout.col_offset,
             central_col_offset=layout.col_offset_of(CENTRAL_SIDE),
             map_property=layout.map_property(),
+            keys_property=layout.keys_property(),
             central_events=_render_events(by_side[CENTRAL_SIDE]),
         ),
     )
@@ -195,7 +241,8 @@ def write_case(scenario: Scenario, layout: Layout, out_dir: Path) -> None:
         ),
     )
     write_if_changed(out_dir / "nrf52_bsim.conf", CONF_TEMPLATE)
-    write_if_changed(out_dir / "central.conf", CENTRAL_CONF_TEMPLATE)
+    write_if_changed(out_dir / "central.conf", read_real_conf(CENTRAL_CONF_SOURCES))
+    write_if_changed(out_dir / "peripheral.conf", read_real_conf(PERIPHERAL_CONF_SOURCES))
     write_if_changed(
         out_dir / "sim.env", f"SIM_LENGTH_US={simulation_length_ms(scenario) * 1000}\n"
     )
