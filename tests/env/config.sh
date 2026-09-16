@@ -19,12 +19,16 @@ case "$PROFILE" in
         WORKSPACE_VOLUME=${ZMK_TEST_WORKSPACE_VOLUME:-torabo-tsuki-zmk-workspace}
         WORK_VOLUME=${ZMK_TEST_WORK_VOLUME:-torabo-tsuki-zmk-work}
         PLATFORM_ARGS=()
+        # Tier A は速さが取り柄なので、キーマップに要るモジュールだけ取る。
+        MODULE_PROFILE=${ZMK_TEST_MODULE_PROFILE:-keymap}
         ;;
     split)
         CONTAINER=${ZMK_TEST_CONTAINER:-torabo-tsuki-pc-test-split}
         WORKSPACE_VOLUME=${ZMK_TEST_WORKSPACE_VOLUME:-torabo-tsuki-zmk-workspace-x86}
         WORK_VOLUME=${ZMK_TEST_WORK_VOLUME:-torabo-tsuki-zmk-work-x86}
         PLATFORM_ARGS=(--platform linux/amd64)
+        # Tier B は実機との差が問題を隠すので、実機と同じモジュール構成にする。
+        MODULE_PROFILE=${ZMK_TEST_MODULE_PROFILE:-full}
         ;;
     *)
         echo "不明なプロファイル: $PROFILE (native / split)" >&2
@@ -65,14 +69,17 @@ ensure_container() {
 }
 
 # west ワークスペースを用意する(2回目以降は差分取得のみ)。
+# マニフェストは毎回作り直す。gen_manifest.py やプロファイルを変えたときに
+# 手で作り直す必要がないようにするため。
 update_workspace() {
-    docker exec "$CONTAINER" bash -euc '
+    docker exec "$CONTAINER" bash -euc "
+        python3 /zmk-config/tests/env/gen_manifest.py --profile '$MODULE_PROFILE' \
+            /workspace/manifest/west.yml
         if [ ! -d /workspace/.west ]; then
-            python3 /zmk-config/tests/env/gen_manifest.py /workspace/manifest/west.yml
             cd /workspace && west init -l manifest
         fi
         cd /workspace
         west update --fetch-opt=--filter=tree:0
         west zephyr-export
-    '
+    "
 }

@@ -25,6 +25,9 @@ CENTRAL_SIDE = "right"
 
 SIDE_LABEL = {PERIPHERAL_SIDE: "L(周辺)", CENTRAL_SIDE: "R(中央)"}
 
+# 物理レイアウトのキー 1 個分の大きさ。実機の layouts.dtsi と同じ単位。
+KEY_UNIT = 100
+
 
 class LayoutError(Exception):
     """シールド定義の読み取りに失敗した場合に送出する。"""
@@ -136,6 +139,23 @@ class Layout:
             last_row = row
         if current:
             lines.append(indent + " ".join(current))
+        return "\n".join(lines)
+
+
+    def keys_property(self, indent: str = "            ") -> str:
+        """devicetree の keys プロパティ本体を組み立てる。
+
+        ZMK_STUDIO を有効にすると物理レイアウトに keys が必須になる
+        (`physical_layouts.c` の BUILD_ASSERT)。テストは Studio のレイアウト
+        UI を使わないので、実機の座標を写さず単純な格子で足りる。
+        並び順は map と同じでなければならない。
+        """
+        lines = [
+            f"{indent}{'=' if index == 0 else ','} "
+            f"<&key_physical_attrs {KEY_UNIT} {KEY_UNIT} "
+            f"{col * KEY_UNIT} {row * KEY_UNIT} 0 0 0>"
+            for index, (row, col) in enumerate(self.positions)
+        ]
         return "\n".join(lines)
 
 

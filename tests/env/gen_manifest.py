@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""config/west.yml から ZMK 本体と、キーマップが使うモジュールだけを
-抜き出したテスト用マニフェストを作る。
+"""config/west.yml から、テストで使うモジュールだけを抜き出した
+テスト用マニフェストを作る。
 
-実機用でもキーマップに出てこないもの(トラックボール、BLE 管理、診断など)は
-取得しない。取得量とビルド時間を抑えつつ、ZMK 本体と各モジュールの
-リビジョンは実機ビルドと必ず一致させる。
+プロファイルが 2 つある。
+
+  keymap (既定) キーマップが使うモジュールだけ。取得量とビルド時間が小さい
+  full          DYA Studio のモジュールを実機と同じだけ入れる。
+                実機との Kconfig 差を減らしたいときに使う
+
+どちらも ZMK 本体と各モジュールのリビジョンは実機ビルドと必ず一致させる。
+ボードとセンサードライバ (bmp_boost, paw3222, iqs7211e など) は
+nrf52_bsim には載らないので、full でも入らない。
 
 キーマップが新しいモジュールのビヘイビアを使い始めたら、
 KEYMAP_MODULE_NAMES に名前を足す。
@@ -22,6 +28,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_MANIFEST = REPO_ROOT / "config" / "west.yml"
 ZMK_PROJECT_NAME = "zmk"
 
+# DYA Studio のモジュールはすべてこのリモートから来る。full プロファイルは
+# west.yml の記述をそのまま使うので、実機側にモジュールが増えれば自動で追随する。
+DYA_REMOTE_NAME = "cormoran"
+
+PROFILES = ("keymap", "full")
+
 # config/keymap.keymap が参照するモジュール。west.yml の定義をそのまま引き写す。
 KEYMAP_MODULE_NAMES = (
     # 下の 2 つが設定の永続化に使う
@@ -30,6 +42,9 @@ KEYMAP_MODULE_NAMES = (
     "zmk-feature-runtime-macro",
     # runtime_combo_defaults
     "zmk-feature-runtime-combo",
+    # キーマップは使わないが、実機で再起動ループを起こしていたフリーズ検出
+    # (task_wdt + 周期フィード) を再現するために必要
+    "zmk-feature-watchdog",
 )
 
 
@@ -37,7 +52,19 @@ class ManifestError(Exception):
     pass
 
 
-def build_manifest(source_text: str) -> dict:
+def select_module_names(projects: list[dict], profile: str) -> list[str]:
+    if profile == "keymap":
+        return list(KEYMAP_MODULE_NAMES)
+
+    # full: cormoran リモートのモジュール (= DYA Studio 一式) をすべて入れる。
+    return [
+        p["name"]
+        for p in projects
+        if p.get("remote") == DYA_REMOTE_NAME and p.get("name") != ZMK_PROJECT_NAME
+    ]
+
+
+def build_manifest(source_text: str, profile: str = "keymap") -> dict:
     source = yaml.safe_load(source_text)
     try:
         manifest = source["manifest"]
@@ -64,7 +91,11 @@ def build_manifest(source_text: str) -> dict:
     ]
     used_remotes = [remote_name]
 
-    for name in KEYMAP_MODULE_NAMES:
+    module_names = select_module_names(projects, profile)
+    if not module_names:
+        raise ManifestError(f"プロファイル {profile!r} で選ばれたモジュールが 0 件です")
+
+    for name in module_names:
         module = next((p for p in projects if p.get("name") == name), None)
         if module is None:
             raise ManifestError(f"{SOURCE_MANIFEST} に {name} プロジェクトがありません")
@@ -87,16 +118,23 @@ def build_manifest(source_text: str) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out", type=Path, help="生成する west.yml のパス")
+    parser.add_argument(
+        "--profile",
+        choices=PROFILES,
+        default="keymap",
+        help="取得するモジュールの範囲 (既定: keymap)",
+    )
     args = parser.parse_args(argv)
 
-    manifest = build_manifest(SOURCE_MANIFEST.read_text(encoding="utf-8"))
+    manifest = build_manifest(SOURCE_MANIFEST.read_text(encoding="utf-8"), args.profile)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(
         "# 自動生成ファイル - tests/env/gen_manifest.py が作成。直接編集しない。\n"
+        f"# プロファイル: {args.profile}\n"
         + yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
-    print(f"生成しました: {args.out}")
+    print(f"生成しました: {args.out} (プロファイル {args.profile})")
     return 0
 
 

@@ -14,17 +14,18 @@ require_docker
 ensure_container
 
 echo "west ワークスペース(x86_64)を準備します"
-docker exec "$CONTAINER" bash -euc '
+docker exec "$CONTAINER" bash -euc "
     cd /workspace
+    python3 /zmk-config/tests/env/gen_manifest.py --profile '$MODULE_PROFILE' \
+        /workspace/manifest/west.yml
     if [ ! -d /workspace/.west ]; then
-        python3 /zmk-config/tests/env/gen_manifest.py /workspace/manifest/west.yml
         west init -l manifest
     fi
     # BabbleSim 本体は既定では取得されないグループに入っている
     west config manifest.group-filter -- +babblesim
     west update --fetch-opt=--filter=tree:0
     west zephyr-export
-'
+"
 
 docker exec "$CONTAINER" bash /zmk-config/tests/env/patch-zmk-native.sh
 

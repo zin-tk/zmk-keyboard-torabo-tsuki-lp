@@ -2,9 +2,14 @@
 #
 # BLE 分割エミュレーション(Tier B)の本体。コンテナ内で動く。
 #   1. シナリオ -> セントラル/ペリフェラル 2台分のビルド設定を生成
-#   2. nrf52_bsim 向けに 2 台分をビルド
-#   3. BabbleSim の仮想2.4GHz電波上で 2 台を同時に走らせる
+#   2. nrf52_bsim 向けに 2 台分 + ホスト役をビルド
+#   3. BabbleSim の仮想2.4GHz電波上で 3 台を同時に走らせる
+#      (左右に加えて、PC/スマホ相当のホスト役を 1 台)
 #   4. セントラル側のログを期待値と比較
+#
+# 各機のフラッシュは $WORK_DIR/build-split/<名前>/flash/*.bin に出る。
+# --reboot を付けると、同じフラッシュのまま 2 回目を走らせる
+# (= ボンドが NVS に残った状態での電源投入を再現する)。
 #
 # 通常はホスト側の tests/run-split.sh から呼ばれる。
 set -uo pipefail
@@ -18,6 +23,10 @@ export BSIM_COMPONENTS_PATH=${BSIM_COMPONENTS_PATH:-$BSIM_OUT_PATH/components}
 HARNESS_DIR="$REPO_ROOT/tests/harness"
 SCENARIOS_DIR="$REPO_ROOT/tests/scenarios"
 BOARD=nrf52_bsim//zmk_test_mock
+# ホスト役は ZMK を使わない素の Zephyr アプリなので、mock kscan の付いた
+# バリアントではなく Zephyr 標準の nrf52_bsim をそのまま使う。
+HOST_BOARD=nrf52_bsim
+HOST_SRC_DIR="$REPO_ROOT/tests/harness/ble_host"
 SNAPSHOT_NAME=expected-split.snapshot
 PHY_TIMEOUT_SEC=600
 
@@ -32,6 +41,7 @@ fi
 accept=0
 show_trace=0
 clean=0
+reboot=0
 pristine_arg=()
 requested=()
 
@@ -40,6 +50,7 @@ while [ $# -gt 0 ]; do
         --accept) accept=1 ;;
         --trace) show_trace=1 ;;
         --clean) pristine_arg=(--pristine); clean=1 ;;
+        --reboot) reboot=1 ;;
         -*) echo "不明なオプション: $1" >&2; exit 2 ;;
         *) requested+=("$1") ;;
     esac
@@ -60,6 +71,79 @@ else
     done
 fi
 
+# ホスト役はシナリオに依存しないので、全シナリオで 1 つの成果物を使い回す。
+host_build_dir="$WORK_DIR/build-split/_ble_host"
+host_build_log="$WORK_DIR/build-split-ble-host.log"
+if ! (cd "$WORKSPACE" && west build -s "$HOST_SRC_DIR" -d "$host_build_dir" -b "$HOST_BOARD" \
+        "${pristine_arg[@]+"${pristine_arg[@]}"}") > "$host_build_log" 2>&1; then
+    echo "ホスト役のビルドに失敗しました: $host_build_log" >&2
+    tail -25 "$host_build_log" >&2
+    exit 1
+fi
+
+# 1 回分のシミュレーションを走らせる。$1 はログの接尾辞("" か "-2")。
+# 結果は phy_status に入る。フラッシュはファイルに置くので、
+# 同じ flash_dir でもう一度呼べば「電源を入れ直した」ことになる。
+run_simulation() {
+    local suffix="$1"
+    local central_pid handbrake_pid peripheral_pid host_pid
+
+    cd "$BSIM_OUT_PATH/bin"
+    "./$central_exe" -d=0 -s="$sim_id" -flash="$flash_dir/central.bin" \
+        > "$build_dir/central$suffix.log" 2>&1 &
+    central_pid=$!
+    ./bs_device_handbrake -s="$sim_id" -d=1 -r=10 > "$build_dir/handbrake$suffix.log" 2>&1 &
+    handbrake_pid=$!
+    "./$peripheral_exe" -d=2 -s="$sim_id" -flash="$flash_dir/peripheral.bin" \
+        > "$build_dir/peripheral$suffix.log" 2>&1 &
+    peripheral_pid=$!
+    "./$host_exe" -d=3 -s="$sim_id" -flash="$flash_dir/host.bin" \
+        > "$build_dir/host$suffix.log" 2>&1 &
+    host_pid=$!
+
+    timeout "$PHY_TIMEOUT_SEC" ./bs_2G4_phy_v1 -s="$sim_id" -D=4 \
+        -sim_length="$SIM_LENGTH_US" > "$build_dir/phy$suffix.log" 2>&1
+    phy_status=$?
+    kill "$central_pid" "$handbrake_pid" "$peripheral_pid" "$host_pid" 2>/dev/null
+    wait "$central_pid" "$handbrake_pid" "$peripheral_pid" "$host_pid" 2>/dev/null
+}
+
+# 1 回分の結果を確かめる。$1 はログの接尾辞、$2 は表示用のラベル。
+check_pass() {
+    local suffix="$1" label="$2"
+
+    if [ "$phy_status" -eq 124 ]; then
+        echo "FAIL: $name ($label シミュレーションがタイムアウト)"
+        return 1
+    fi
+
+    # 左右が BLE 接続できていなければ、その先の比較には意味がない。
+    if ! grep -qE "Discover complete|\[SUBSCRIBED\]" "$build_dir/central$suffix.log"; then
+        echo "FAIL: $name ($label 左右が BLE 接続できていません)"
+        echo "  セントラル: $build_dir/central$suffix.log"
+        echo "  ペリフェラル: $build_dir/peripheral$suffix.log"
+        return 1
+    fi
+
+    # ホスト役から見て、キーボードが広告を出して接続できているか。
+    # 実機で起きた「ホストと BLE 接続できない」はここで落ちる。
+    if ! grep -q "HOST: connected" "$build_dir/host$suffix.log"; then
+        echo "FAIL: $name ($label ホストが BLE 接続できていません)"
+        echo "  ホスト: $build_dir/host$suffix.log"
+        return 1
+    fi
+
+    # スナップショットは ZMK 内部のログなので、HOG が壊れていても通ってしまう。
+    # ホストに実際にレポートが届いたことは別に確かめる。
+    if ! grep -q "HOST: report " "$build_dir/host$suffix.log"; then
+        echo "FAIL: $name ($label ホストに HID レポートが届いていません)"
+        echo "  ホスト: $build_dir/host$suffix.log"
+        return 1
+    fi
+
+    return 0
+}
+
 build_half() {
     local half="$1" build_dir="$2" gen_dir="$3" log="$4"
     shift 4
@@ -73,6 +157,7 @@ for scenario_dir in "${scenario_dirs[@]}"; do
     name=$(basename "$scenario_dir")
     gen_dir="$WORK_DIR/gen-split/$name"
     build_dir="$WORK_DIR/build-split/$name"
+    flash_dir="$build_dir/flash"
     expected="$scenario_dir/$SNAPSHOT_NAME"
     sim_id="tt_$(echo "$name" | tr -c '[:alnum:]_' '_')"
 
@@ -96,7 +181,8 @@ for scenario_dir in "${scenario_dirs[@]}"; do
         continue
     fi
     if ! build_half peripheral "$build_dir" "$gen_dir" "$WORK_DIR/build-split-$name-peripheral.log" \
-            -DEXTRA_DTC_OVERLAY_FILE="$gen_dir/peripheral.overlay"; then
+            -DEXTRA_DTC_OVERLAY_FILE="$gen_dir/peripheral.overlay" \
+            -DEXTRA_CONF_FILE="$gen_dir/peripheral.conf"; then
         echo "FAIL: $name (ペリフェラルのビルド失敗)"
         tail -25 "$WORK_DIR/build-split-$name-peripheral.log"
         failed=1
@@ -105,45 +191,40 @@ for scenario_dir in "${scenario_dirs[@]}"; do
 
     central_exe="${sim_id}_central.exe"
     peripheral_exe="${sim_id}_peripheral.exe"
+    host_exe="${sim_id}_host.exe"
     cp "$build_dir/central/zephyr/zmk.exe" "$BSIM_OUT_PATH/bin/$central_exe"
     cp "$build_dir/peripheral/zephyr/zmk.exe" "$BSIM_OUT_PATH/bin/$peripheral_exe"
+    cp "$host_build_dir/zephyr/zephyr.exe" "$BSIM_OUT_PATH/bin/$host_exe"
 
-    cd "$BSIM_OUT_PATH/bin"
-    "./$central_exe" -d=0 -s="$sim_id" > "$build_dir/central.log" 2>&1 &
-    central_pid=$!
-    ./bs_device_handbrake -s="$sim_id" -d=1 -r=10 > "$build_dir/handbrake.log" 2>&1 &
-    handbrake_pid=$!
-    "./$peripheral_exe" -d=2 -s="$sim_id" > "$build_dir/peripheral.log" 2>&1 &
-    peripheral_pid=$!
+    # フラッシュは毎回まっさらから始める。--reboot の 2 回目だけが引き継ぐ。
+    rm -rf "$flash_dir"
+    mkdir -p "$flash_dir"
 
-    timeout "$PHY_TIMEOUT_SEC" ./bs_2G4_phy_v1 -s="$sim_id" -D=3 \
-        -sim_length="$SIM_LENGTH_US" > "$build_dir/phy.log" 2>&1
-    phy_status=$?
-    kill "$central_pid" "$handbrake_pid" "$peripheral_pid" 2>/dev/null
-    wait "$central_pid" "$handbrake_pid" "$peripheral_pid" 2>/dev/null
-
-    if [ $phy_status -eq 124 ]; then
-        echo "FAIL: $name (シミュレーションがタイムアウト)"
+    run_simulation ""
+    if ! check_pass "" "初回:"; then
         failed=1
         continue
     fi
 
-    # 左右が BLE 接続できていなければ、その先の比較には意味がない。
-    if ! grep -qE "Discover complete|\[SUBSCRIBED\]" "$build_dir/central.log"; then
-        echo "FAIL: $name (左右が BLE 接続できていません)"
-        echo "  セントラル: $build_dir/central.log"
-        echo "  ペリフェラル: $build_dir/peripheral.log"
-        failed=1
-        continue
+    # 比較に使うのは最後のパスのログ。
+    suffix=""
+    if [ $reboot -eq 1 ]; then
+        echo "  初回 OK。同じフラッシュのまま電源を入れ直します"
+        run_simulation "-2"
+        if ! check_pass "-2" "再起動後:"; then
+            failed=1
+            continue
+        fi
+        suffix="-2"
     fi
 
     actual="$build_dir/actual.snapshot"
-    sed -n -f "$HARNESS_DIR/events.patterns" "$build_dir/central.log" > "$actual"
+    sed -n -f "$HARNESS_DIR/events.patterns" "$build_dir/central$suffix.log" > "$actual"
 
     if [ $show_trace -eq 1 ]; then
         # 左右を同じ時間軸に並べると、BLE 転送にかかった時間がそのまま読める
         python3 "$HARNESS_DIR/trace.py" \
-            "左=$build_dir/peripheral.log" "右=$build_dir/central.log"
+            "左=$build_dir/peripheral$suffix.log" "右=$build_dir/central$suffix.log"
         echo
     fi
 

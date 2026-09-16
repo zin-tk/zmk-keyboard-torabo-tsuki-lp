@@ -1,0 +1,240 @@
+# Tier B (BLE 分割エミュレーション) 整備 — 引き継ぎ
+
+作成: 2026-09-16 / 更新: 2026-09-16 / 対象: 別セッションで継続する人
+
+## なぜこの作業が要るのか
+
+2026-09-15〜16 に「ZMK v0.4 移行後、ホストと BLE 接続できない」不具合を調査した。
+原因究明のたびに実機へ uf2 を焼いてもらう必要が生じ、10 回近く書き込みを依頼して
+しまった。根本原因は **Tier B がこの種の問題を一切再現できない構成だったこと**。
+
+Tier B は「キーマップの打鍵結果を確認する」目的で作られており、
+BLE の接続性・安定性・設定永続化を検証する作りになっていない。
+ここを埋めれば、以降この手の問題は実機に焼かずに切り分けられる。
+
+## やったこと (完了)
+
+### 1. watchdog モジュールを Tier B に追加
+- `tests/env/gen_manifest.py` の `KEYMAP_MODULE_NAMES` に `zmk-feature-watchdog` を追加
+- `tests/harness/gen_split_case.py` の共通 conf に `CONFIG_ZMK_WATCHDOG=y`
+- 結果: 起動ログに `Watchdog freeze monitor armed: queue='sysworkq' / 'lowprio_workq'` が出るようになった。
+  ただし実機で多発した「起動10秒のフリーズ」は **再現しなかった**
+
+### 2. NVS settings を有効化
+- 同 `CONF_TEMPLATE` に `CONFIG_FLASH=y / FLASH_MAP=y / NVS=y / SETTINGS=y / SETTINGS_NVS=y`
+  と `SYSTEM_WORKQUEUE_STACK_SIZE=2048` を追加
+- それまでは `CONFIG_SETTINGS_NONE=y` で **settings_save_one() が黙って捨てられていた**
+- 確認: `CONFIG_SETTINGS_NONE is not set` / `SETTINGS_NVS_SECTOR_COUNT=8` (実機と同数)
+- 既存シナリオ `01-basic-typing` は PASS のまま (回帰なし)
+
+### 3. ホスト役 (4 台目) を追加 ← 旧「残作業1」
+- `tests/harness/ble_host/` に、ZMK を使わない素の Zephyr BLE セントラルを新設
+- `run_split_tests.sh` を `-D=4` にし、`-d=3` でホスト役を起動
+- スキャン → HID サービス(0x1812)の広告を検出 → 接続 → ペアリング →
+  レポート特性(0x2A4D)を購読 → レポート受信、まで通る
+- 「接続できたか」と「レポートが届いたか」をシナリオの合否に含めた
+
+**この過程で見つかった不具合**: 購読するまで ZMK は
+`send_keyboard_report_callback: Error notifying -22` を出し続けていた。
+スナップショットは ZMK 内部のログから作るので気づけなかった。
+現在は全シナリオで 0 件。
+
+全 5 シナリオ PASS。実機ではまだ検証していない。
+
+### 4. フラッシュ状態の注入機構 ← 旧「残作業1」
+- 各機を `-flash=<file>` で起動し、`/work/build-split/<名前>/flash/*.bin` に
+  フラッシュの中身を残す。`strings ... | grep '^bt/'` で NVS の中身が読める
+- `--reboot` で同じフラッシュのまま 2 回走らせる
+  (= ボンドが NVS に残った状態での電源投入)
+- ホスト役もボンドを永続化し、2 回目はスキャンせず直接繋ぎにいく
+
+**この過程で見つかった挙動** (下の「再起動後の初回接続が必ず失敗する」を参照)。
+
+全 5 シナリオが通常モード / `--reboot` の両方で PASS。
+
+### 5. 実機と同じモジュール構成 / 実機 conf との同期 ← 旧「残作業2・3」
+- `gen_manifest.py --profile full` で cormoran リモートのモジュールを全取得
+  (= DYA Studio 一式 13 個)。Tier B の既定にした
+- `gen_split_case.py` が手書き conf をやめ、実機の
+  `torabo_tsuki_lp_{right,left}.conf` と `split-central.conf` を読み込む。
+  nrf52_bsim に載らない項目だけ `SKIP_SYMBOLS` で落とす
+- 生成キーマップを `chosen zmk,matrix-transform` から物理レイアウト経由に変更
+  (ZMK_STUDIO の BUILD_ASSERT が前者を許さない)
+- マニフェストを毎回作り直すようにして、既知の罠 1 を解消
+
+**これで揃った差分**:
+
+| 項目 | 以前 | 現在 (= 実機) |
+| --- | --- | --- |
+| `CONFIG_ZMK_STUDIO` | 無効 | 有効 |
+| DYA モジュール | 4 個 (機能は custom-settings と watchdog のみ) | 13 個 / 機能 8 種有効 |
+| `BT_MAX_CONN` / `BT_MAX_PAIRED` | 6 / 既定 | 5 / 5 |
+| TX 電力 | 0 dBm | +8 dBm |
+| `SYSTEM_WORKQUEUE_STACK_SIZE` | 2048 | 4096 |
+
+**まだ揃っていないもの** (`SKIP_SYMBOLS`、いずれもハードウェア依存):
+`ZMK_STATUS_LED` / `ZMK_CDC_ACM_BOOTLOADER_TRIGGER` / `ZMK_NON_LIPO_*` /
+`ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_{PROXY,FETCHING}`。
+ボード (bmp_boost) とセンサードライバ (paw3222 / iqs7211e) も入らない。
+
+## 再起動後の初回接続が必ず失敗する (新規、未評価)
+
+`--reboot` の 2 回目で、**ホストの 1 回目の接続要求が必ず失敗する**。
+5 シナリオすべてで再現し、試行回数もちょうど 2 回で一致する。
+
+```
+HOST: connect requested to FD:9E:B2:48:47:39   @0.0036
+HOST: connected to FD:9E:B2:48:47:39           @0.3273
+<wrn> bt_conn: conn 0x80f6620 failed to establish. RF noise?
+HOST: security failed (level 1, err 9)         @0.5788
+HOST: disconnected (reason 0x3e)               @0.5788   ← CONN_FAILED_TO_BE_ESTABLISHED
+HOST: retrying (attempt 2 of 6)
+HOST: connected                                @0.6468   ← 成功
+HOST: security level 2                         @0.8484
+```
+
+**セントラル側のログには、1 回目の接続が一切現れない。**
+CONNECT_IND は届いているが、リンク層が接続を成立させていない。
+
+**状況**: 失敗する窓 (0.327〜0.578) は、セントラルが分割ペリフェラルとの
+リンクを確立・暗号化している最中と重なる (ペリフェラル接続 @0.068、
+GATT 探索 〜0.257、暗号化完了 @0.557)。成功する 2 回目 (@0.646) は
+その直後。**分割リンクの確立中はホストからの接続を取りこぼす**ように見える。
+
+**なぜ重要か**: 初回起動時 (ボンドなし) はこれが起きない。ホストが先に
+接続してから分割ペリフェラルが繋がるためで、順序が逆になるのは
+ボンド済みの再起動時だけ。実機の「電源投入では繋がらない」と条件が近い。
+
+**まだ言えないこと**: これが実機で起きているかは未検証。bsim の無線
+スケジューリング固有の可能性もある。`BT_CTLR_PERIPHERAL_RESERVE_MAX` は
+反証済み仮説の表にあるが、そこでの評価は「不安定化の要因止まり」だった。
+今回は接続確立そのものが落ちているので、再評価の価値がある。
+
+**実機 conf を適用しても変わらなかった**: 上の「5」で BT_MAX_CONN=5 /
+TX +8dBm / Studio 有効まで実機に揃えた後も、5 シナリオすべてで同じく
+試行 2 回・1 回目 0x3e。設定の差が原因ではない。
+
+**次にやること**: `CONFIG_BT_CTLR_*` の予約量 (`BT_CTLR_PERIPHERAL_RESERVE_MAX`
+など) を変えて消えるか見る。消えないなら bsim の無線スケジューリング固有と
+判断してよい。
+
+## 調査で判明した、整備に使える事実
+
+| 事実 | 出典 |
+| --- | --- |
+| `nrf52_bsim.dts` は `flash0` と `storage_partition`(512K) を**既に持っている**。Kconfig を立てるだけで NVS が動く | `/workspace/zephyr/boards/native/nrf_bsim/nrf52_bsim.dts:88-100` |
+| Zephyr 自身の bsim テストに settings を使う前例が複数ある | `zephyr/tests/bsim/bluetooth/host/gatt/ccc_store/prj.conf`, `host/id/settings/prj.conf` |
+| bsim は `-flash=<file> -flash_rm` で**フラッシュ内容をファイルで指定・永続化できる** | 同 `ccc_store/test_scripts/*.sh` |
+| 現行 Tier B は既に `-D=3` の 3 台構成 (central / handbrake / peripheral) | `tests/harness/run_split_tests.sh:116-120` |
+| Zephyr に bsim 用の BLE central/peripheral 実装が揃っている | `zephyr/tests/bsim/bluetooth/host/{central,adv,gatt,security,privacy,scan}` |
+
+## 残作業
+
+引き継ぎ時点の残作業 4 件はすべて消化した。次に手を付けるなら:
+
+1. **「再起動後の初回接続が必ず失敗する」の評価** (上記)。
+   bsim 固有か、実機でも起きるのか。
+2. **実機での確認**。Tier B の整備はすべて bsim 上でしか検証していない。
+3. **ホスト役の充実**。今は 1 プロファイルに繋ぐだけ。実機は BLE プロファイル
+   4 本を持つので、プロファイル切り替えやマルチホストは再現できていない。
+
+## 環境の使い方
+
+```bash
+# 前提: colima 起動 (サンドボックスからは起動できないので手元で実行してもらう)
+colima start --vm-type=vz --vz-rosetta --cpu 6 --memory 12 --disk 80
+
+# DYA 構成のコンテナ/ボリュームを使う場合
+export ZMK_TEST_CONTAINER=torabo-tsuki-pc-test-split-dya
+export ZMK_TEST_WORKSPACE_VOLUME=torabo-tsuki-zmk-workspace-x86-dya
+export ZMK_TEST_WORK_VOLUME=torabo-tsuki-zmk-work-x86-dya
+
+./tests/run-split.sh 01-basic-typing
+./tests/run-split.sh --trace 01-basic-typing
+```
+
+- ワークスペース: コンテナ内 `/workspace` (zmk, zephyr, BabbleSim, 取得済みモジュール)
+- 生成物: `/work/gen-split/<シナリオ>/`、
+  `/work/build-split/<シナリオ>/{central,peripheral,host,phy}.log`
+- ホスト役の成果物は `/work/build-split/_ble_host/` (シナリオ非依存。1 回だけビルドされる)
+- リポジトリは `/zmk-config` に bind される
+
+## 既知の罠
+
+1. ~~`update_workspace()` は `.west` があると manifest を再生成しない~~
+   **解消済み** (`f05f4c2`)。毎回作り直すようになった。
+2. **コンテナのマウント先は作成時に固定される**。別のワークツリーから使うときは
+   コンテナを作り直す (`ensure_container` は running なら何もしない)。
+3. **スクラッチパッド (`/private/tmp/...`) は colima の VM にマウントされていない**。
+   `-v` で渡せないので `docker cp` を使う。
+4. **`docker exec` をバックグラウンド実行すると中身が失敗しても成功扱いになる**。
+   必ずログに `EXIT=$?` を書かせて確認する。
+5. Tier B 固有の 2 点 (`CONFIG_BT_SETTINGS=y` 必須、`zmk_behavior_local_id_map` の
+   const 外し) は `tests/README.md` と `tests/env/patch-zmk-native.sh` を参照。
+
+## 本体の不具合について (未解決・参考情報)
+
+整備が目的なので詳細は追わなくてよいが、同じ仮説を再検証して時間を溶かさないために
+記録しておく。
+
+### 症状
+- v0.3 では BLE で使えていた。v0.4 移行後、**ホストと BLE 接続できない**
+- USB 給電中は BLE のペアリングも接続も正常にできる
+- USB 給電が無い状態 (電源投入のみ含む) では繋がらない。ホストの一覧にも出ない
+- 左右の分割接続は成立している (両半身とも入力できる)
+- 右の電池を新品に交換しても変化なし
+
+### 反証済みの仮説 (再検証不要)
+
+| 仮説 | 反証根拠 |
+| --- | --- |
+| 電圧/電池 | non-lipo モジュールが v0.3 と **md5 完全一致**、DTS もバイト同一、実機のバッテリー残量は 0% でない |
+| activity の sleep_ms 永続化 | 実機 Studio の Settings が既定値 (アイドル30秒/スリープ150分) |
+| `ble/active_profile` 範囲外 | 実機 Studio の Connection タブでアクティブ=0 を確認 |
+| ペアリング拒否 (`profile_is_open`) | USB 中はペアリングできている |
+| 起動時フラッシュ占有 | 起動時の NVS 消去は 0〜1 回。10 秒に必要な量の 1/37 |
+| `zmk_pm_suspend_devices()` ハング | 呼び出し元 4 箇所、起動 5 秒以内に到達する経路なし |
+| `BT_CTLR_PERIPHERAL_RESERVE_MAX` | 接続確立の機序を作れない (不安定化の要因止まり) |
+| input-stream の Known issue | Studio 切断時限定。電源投入時を説明できない |
+| `usb.c` / `hog.c` | v0.3 と **差分ゼロ** |
+| `endpoints.c` | 既定 transport が BLE→USB に逆転しているが、フォールバック実装は正常 |
+| 広告オプション変更 | `BT_LE_ADV_OPT_CONNECTABLE|ONE_TIME` → `BT_LE_ADV_OPT_CONN` は**ビット値まで等価** |
+| HFCLK/HFXO の起動差 | 定数・クロック設定・DTS が v0.3/v0.4 で完全同一 |
+| DCDC 無効化 | v0.4 も devicetree 経由で有効 (`soc.c:35-37`) |
+
+### 確認済みの重要事実
+- **USB/VBUS 状態で BLE の広告・スキャン・ペアリングを分岐させるコードは、ZMK 本体にも
+  全 DYA モジュールにも 1 行も存在しない** (全 grep 済み)
+- `ble.c` の v0.3→v0.4 差分は 3 箇所のみで、すべて等価
+- v0.4 で増えた常時消費電流は µA オーダー (無線時の mA に対し 0.1% 未満)
+- `CONFIG_BT_CTLR_TX_PWR_PLUS_8=y` は v0.3/v0.4 同一 (ピーク電流は増えていない)
+
+### 次にやるべき測定 (実機、費用ゼロ)
+1. **電池のみで電源投入し、右半身のステータス LED を 30 秒観察**。
+   `ZMK_STATUS_LED_ADVERTISING=y` / `ADVERTISING_INTERVAL_MS=3000` は
+   v0.3/v0.4 同一で、未接続かつ広告中なら 3 秒周期で 2 回点滅する。
+   点滅しないなら広告状態に到達していない。
+2. **スマホの BLE スキャナ (nRF Connect 等) で、電池のみの右半身が見えるか**。
+   USB 給電時との RSSI 比較が最も情報量が多い。
+3. **Studio のバッテリー履歴で小さい timestamp のエントリ数を数える**。
+   timestamp は起動からの秒数で、毎起動 1 エントリが強制記録されるため、
+   **本数 = 再起動回数**になる。
+
+### 未解決の矛盾
+ソフト側に「USB 給電の有無で BLE の可否が変わる」を説明できる候補が 1 つも残っていない。
+残る可能性は (a) v0.3 でも同じだった (電池単体での検証が不十分だった)、
+(b) ファーム以外が並行して変わった (電池ホルダ接触・昇圧モジュール・はんだ)、
+(c) v0.4 が既存のハードマージンを食い潰した (定量できず不明)。
+**上記 1〜3 の測定でここを切り分けるのが先**。
+
+## コミット済みの変更
+
+| コミット | 内容 |
+| --- | --- |
+| `3a8cb44` | watchdog モジュールと NVS settings 一式 (上の完了 1・2) |
+| `58db91a` | ホスト役 (4 台目) の追加 |
+| `7c3f40d` | ホスト役の HOG 購読とレポート到達チェック |
+| `2d4f5b7` | フラッシュのファイル化と `--reboot` |
+| `f05f4c2` | モジュールと Kconfig を実機に揃える |
+
+ブランチ: `claude/keyboard-lock-handover-tests-b762b4`
