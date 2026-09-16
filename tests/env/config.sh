@@ -38,6 +38,15 @@ esac
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 
+# 比較用ベースライン。tests/run-split-baseline.sh が設定する。
+# 過去のリビジョンを展開したディレクトリを /zmk-config-src に足し、
+# 生成スクリプトにそちらの設定を読ませる (ZMK_CONFIG_SOURCE_ROOT)。
+BASELINE_DIR=${ZMK_TEST_BASELINE_DIR:-}
+EXTRA_MOUNTS=()
+if [ -n "$BASELINE_DIR" ]; then
+    EXTRA_MOUNTS=(-v "$BASELINE_DIR:/zmk-config-src")
+fi
+
 require_docker() {
     if ! docker info >/dev/null 2>&1; then
         echo "docker に接続できません。先に colima を起動してください:" >&2
@@ -62,6 +71,7 @@ ensure_container() {
     docker run -d --name "$CONTAINER" \
         "${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"}" \
         -v "$REPO_ROOT:/zmk-config" \
+        "${EXTRA_MOUNTS[@]+"${EXTRA_MOUNTS[@]}"}" \
         -v "$WORKSPACE_VOLUME:/workspace" \
         -v "$WORK_VOLUME:/work" \
         -w /workspace \
@@ -72,7 +82,8 @@ ensure_container() {
 # マニフェストは毎回作り直す。gen_manifest.py やプロファイルを変えたときに
 # 手で作り直す必要がないようにするため。
 update_workspace() {
-    docker exec "$CONTAINER" bash -euc "
+    docker exec -e "ZMK_CONFIG_SOURCE_ROOT=${ZMK_CONFIG_SOURCE_ROOT:-/zmk-config}" \
+        "$CONTAINER" bash -euc "
         python3 /zmk-config/tests/env/gen_manifest.py --profile '$MODULE_PROFILE' \
             /workspace/manifest/west.yml
         if [ ! -d /workspace/.west ]; then

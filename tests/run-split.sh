@@ -23,4 +23,11 @@ if ! container_running; then
     exit 1
 fi
 
-docker exec "$CONTAINER" bash /zmk-config/tests/harness/run_split_tests.sh "$@"
+docker exec \
+    -e "ZMK_CONFIG_SOURCE_ROOT=${ZMK_CONFIG_SOURCE_ROOT:-/zmk-config}" \
+    -e "ZMK_TEST_BOARD=${ZMK_TEST_BOARD:-nrf52_bsim//zmk_test_mock}" \
+    -e "ZMK_TEST_EXTRA_CONF=${ZMK_TEST_EXTRA_CONF:-}" \
+    -e "ZMK_TEST_EXTRA_OVERLAY=${ZMK_TEST_EXTRA_OVERLAY:-}" \
+    -e "ZMK_TEST_PERSISTENCE=${ZMK_TEST_PERSISTENCE:-nvs}" \
+    -e "ZMK_TEST_CHECK_REPORTS=${ZMK_TEST_CHECK_REPORTS:-1}" \
+    "$CONTAINER" bash /zmk-config/tests/harness/run_split_tests.sh "$@"

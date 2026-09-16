@@ -1,0 +1,16 @@
+# PC テスト専用の擬似バッテリー。
+# nrf52_bsim には ADC が無く、実機の zmk-feature-non-lipo-battery-management を
+# そのまま載せられないため、電圧を直接与えられるセンサーで代用する。
+
+description: Fake battery sensor for PC tests
+
+compatible: "zmk,fake-battery"
+
+include: base.yaml
+
+properties:
+  millivolts:
+    type: int
+    default: 1250
+    description: |
+      報告する電圧 (mV)。実機の単セル運用に合わせた既定値。

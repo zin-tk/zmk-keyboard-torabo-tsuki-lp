@@ -8,16 +8,20 @@ boards/shields/torabo_tsuki_lp/ が唯一の出典。
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# 過去のリビジョンと比べたいときは、tests/env/export_baseline.sh で展開した
+# ディレクトリを ZMK_CONFIG_SOURCE_ROOT で指す。
+CONFIG_ROOT = Path(os.environ.get("ZMK_CONFIG_SOURCE_ROOT", REPO_ROOT))
 
-SHIELD_DIR = REPO_ROOT / "boards" / "shields" / "torabo_tsuki_lp"
+SHIELD_DIR = CONFIG_ROOT / "boards" / "shields" / "torabo_tsuki_lp"
 SHIELD_DTSI = SHIELD_DIR / "torabo_tsuki_lp.dtsi"
 RIGHT_OVERLAY = SHIELD_DIR / "torabo_tsuki_lp_right.overlay"
-KEYMAP_FILE = REPO_ROOT / "config" / "keymap.keymap"
+KEYMAP_FILE = CONFIG_ROOT / "config" / "keymap.keymap"
 
 # build.yaml のビルドターゲット定義より: 左がペリフェラル / 右がセントラル。
 PERIPHERAL_SIDE = "left"
