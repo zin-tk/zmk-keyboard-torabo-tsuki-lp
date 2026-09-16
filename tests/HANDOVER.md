@@ -52,6 +52,31 @@ BLE の接続性・安定性・設定永続化を検証する作りになって�
 
 全 5 シナリオが通常モード / `--reboot` の両方で PASS。
 
+### 5. 実機と同じモジュール構成 / 実機 conf との同期 ← 旧「残作業2・3」
+- `gen_manifest.py --profile full` で cormoran リモートのモジュールを全取得
+  (= DYA Studio 一式 13 個)。Tier B の既定にした
+- `gen_split_case.py` が手書き conf をやめ、実機の
+  `torabo_tsuki_lp_{right,left}.conf` と `split-central.conf` を読み込む。
+  nrf52_bsim に載らない項目だけ `SKIP_SYMBOLS` で落とす
+- 生成キーマップを `chosen zmk,matrix-transform` から物理レイアウト経由に変更
+  (ZMK_STUDIO の BUILD_ASSERT が前者を許さない)
+- マニフェストを毎回作り直すようにして、既知の罠 1 を解消
+
+**これで揃った差分**:
+
+| 項目 | 以前 | 現在 (= 実機) |
+| --- | --- | --- |
+| `CONFIG_ZMK_STUDIO` | 無効 | 有効 |
+| DYA モジュール | 4 個 (機能は custom-settings と watchdog のみ) | 13 個 / 機能 8 種有効 |
+| `BT_MAX_CONN` / `BT_MAX_PAIRED` | 6 / 既定 | 5 / 5 |
+| TX 電力 | 0 dBm | +8 dBm |
+| `SYSTEM_WORKQUEUE_STACK_SIZE` | 2048 | 4096 |
+
+**まだ揃っていないもの** (`SKIP_SYMBOLS`、いずれもハードウェア依存):
+`ZMK_STATUS_LED` / `ZMK_CDC_ACM_BOOTLOADER_TRIGGER` / `ZMK_NON_LIPO_*` /
+`ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_{PROXY,FETCHING}`。
+ボード (bmp_boost) とセンサードライバ (paw3222 / iqs7211e) も入らない。
+
 ## 再起動後の初回接続が必ず失敗する (新規、未評価)
 
 `--reboot` の 2 回目で、**ホストの 1 回目の接続要求が必ず失敗する**。
@@ -85,8 +110,13 @@ GATT 探索 〜0.257、暗号化完了 @0.557)。成功する 2 回目 (@0.646) 
 反証済み仮説の表にあるが、そこでの評価は「不安定化の要因止まり」だった。
 今回は接続確立そのものが落ちているので、再評価の価値がある。
 
-**次にやること**: `CONFIG_BT_CTLR_*` の予約量を変えて消えるか見る。
-消えるなら実機の conf と突き合わせる。
+**実機 conf を適用しても変わらなかった**: 上の「5」で BT_MAX_CONN=5 /
+TX +8dBm / Studio 有効まで実機に揃えた後も、5 シナリオすべてで同じく
+試行 2 回・1 回目 0x3e。設定の差が原因ではない。
+
+**次にやること**: `CONFIG_BT_CTLR_*` の予約量 (`BT_CTLR_PERIPHERAL_RESERVE_MAX`
+など) を変えて消えるか見る。消えないなら bsim の無線スケジューリング固有と
+判断してよい。
 
 ## 調査で判明した、整備に使える事実
 
@@ -98,27 +128,15 @@ GATT 探索 〜0.257、暗号化完了 @0.557)。成功する 2 回目 (@0.646) 
 | 現行 Tier B は既に `-D=3` の 3 台構成 (central / handbrake / peripheral) | `tests/harness/run_split_tests.sh:116-120` |
 | Zephyr に bsim 用の BLE central/peripheral 実装が揃っている | `zephyr/tests/bsim/bluetooth/host/{central,adv,gatt,security,privacy,scan}` |
 
-## 残作業 (優先順)
+## 残作業
 
-### 1. 実機と同じモジュール構成
+引き継ぎ時点の残作業 4 件はすべて消化した。次に手を付けるなら:
 
-**現状**: `gen_manifest.py` の `KEYMAP_MODULE_NAMES` は 4 つだけ
-(custom-settings / runtime-macro / runtime-combo / watchdog)。
-
-**実機**: 上記 + fast-keymap / input-stream / physical-layout /
-runtime-input-processor / settings-rpc / ble-management / device-info /
-battery-history / sensor-rotate
-
-モジュールが増えると取得量とビルド時間が増えるので、
-「キーマップ用」と「実機フル構成」をプロファイルで切り替えられるようにするのが望ましい。
-
-### 2. 実機 conf との同期
-
-**現状**: `gen_split_case.py` が独自の最小 conf を持ち、実機の
-`boards/shields/torabo_tsuki_lp/*.conf` や `snippets/split-central/split-central.conf`
-とは別物。**実機と Kconfig がズレると問題が再現しない**(今回まさにそれが起きた)。
-
-理想は実機の conf をそのまま読み込み、bsim で成立しない項目だけを上書きする形。
+1. **「再起動後の初回接続が必ず失敗する」の評価** (上記)。
+   bsim 固有か、実機でも起きるのか。
+2. **実機での確認**。Tier B の整備はすべて bsim 上でしか検証していない。
+3. **ホスト役の充実**。今は 1 プロファイルに繋ぐだけ。実機は BLE プロファイル
+   4 本を持つので、プロファイル切り替えやマルチホストは再現できていない。
 
 ## 環境の使い方
 
@@ -143,10 +161,8 @@ export ZMK_TEST_WORK_VOLUME=torabo-tsuki-zmk-work-x86-dya
 
 ## 既知の罠
 
-1. **`update_workspace()` は `.west` があると manifest を再生成しない**
-   (`tests/env/config.sh`)。`gen_manifest.py` を変えたら
-   `python3 /zmk-config/tests/env/gen_manifest.py /workspace/manifest/west.yml` を
-   手動実行してから `west update` すること。
+1. ~~`update_workspace()` は `.west` があると manifest を再生成しない~~
+   **解消済み** (`f05f4c2`)。毎回作り直すようになった。
 2. **コンテナのマウント先は作成時に固定される**。別のワークツリーから使うときは
    コンテナを作り直す (`ensure_container` は running なら何もしない)。
 3. **スクラッチパッド (`/private/tmp/...`) は colima の VM にマウントされていない**。
@@ -219,5 +235,6 @@ export ZMK_TEST_WORK_VOLUME=torabo-tsuki-zmk-work-x86-dya
 | `58db91a` | ホスト役 (4 台目) の追加 |
 | `7c3f40d` | ホスト役の HOG 購読とレポート到達チェック |
 | `2d4f5b7` | フラッシュのファイル化と `--reboot` |
+| `f05f4c2` | モジュールと Kconfig を実機に揃える |
 
 ブランチ: `claude/keyboard-lock-handover-tests-b762b4`
