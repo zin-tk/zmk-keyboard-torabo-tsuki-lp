@@ -134,6 +134,27 @@ HOST: report 0x001d (8 bytes): 00 00 14 00 00 00 00 00
 そのためホスト役については **接続できたか** と **レポートが届いたか** を
 別途チェックしており、どちらかが欠けるとシナリオは失敗する。
 
+### 再起動を挟む (`--reboot`)
+各機のフラッシュは `/work/build-split/<名前>/flash/{central,peripheral,host}.bin`
+に置かれる。`--reboot` を付けると、**同じフラッシュのまま 2 回目を走らせる**:
+
+```bash
+./tests/run-split.sh --reboot 01-basic-typing
+```
+
+1 回目でペアリングし、2 回目は**ボンドが NVS に残った状態での電源投入**になる。
+2 回目のホスト役はスキャンせず、NVS に残った相手へ直接繋ぎにいく
+(再起動後のキーボードは指向性広告を出すことがあり、広告データが空なので
+スキャンからは見つけられないため)。判定は両方のパスに対して行われ、
+スナップショットの比較は 2 回目のログを使う。
+
+NVS に何が残ったかは、フラッシュを直接見れば分かる:
+
+```bash
+strings flash/central.bin | grep -E '^(bt|ble)/'
+# ble/profiles/0, bt/keys/<相手>, bt/ccc/<相手> など
+```
+
 ## シナリオの書き方
 
 `tests/scenarios/<名前>/scenario.yaml` を作るだけ。
@@ -184,6 +205,7 @@ python3 tests/harness/show_layout.py 4   # レイヤ 4
 | `tests/harness/run_tests.sh` | Tier A のビルド・実行・比較 |
 | `tests/harness/run_split_tests.sh` | Tier B のビルド・BabbleSim 実行・比較 |
 | `tests/harness/ble_host/` | Tier B のホスト役(PC 相当の最小 BLE セントラル) |
+| `/work/build-split/<名前>/flash/` | 各機のフラッシュ(NVS の中身がここに残る) |
 | `tests/harness/trace.py` | ログ → 時系列表示 |
 | `tests/harness/events.patterns` | ログから期待値比較に使う行を抜き出す規則 |
 | `tests/harness/stubs/` | Tier A 専用スタブ(`&bt`) |
