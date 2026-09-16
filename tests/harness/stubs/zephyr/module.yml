@@ -1,3 +1,7 @@
 name: torabo-tsuki-pc-test-stubs
 build:
   cmake: .
+  kconfig: Kconfig
+  # dts/bindings/ の擬似バッテリーのバインディングを拾わせる
+  settings:
+    dts_root: .

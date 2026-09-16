@@ -1,0 +1,3 @@
+
+# tests/env/export_baseline.sh が展開する比較用のチェックアウト
+.baseline-*/

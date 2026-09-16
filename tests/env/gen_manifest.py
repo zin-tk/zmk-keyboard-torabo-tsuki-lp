@@ -19,13 +19,17 @@ KEYMAP_MODULE_NAMES に名前を足す。
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SOURCE_MANIFEST = REPO_ROOT / "config" / "west.yml"
+# 比較用に過去のリビジョンを展開したディレクトリを読ませたいときに差し替える。
+# tests/env/export_baseline.sh で作ったディレクトリを指す。
+CONFIG_ROOT = Path(os.environ.get("ZMK_CONFIG_SOURCE_ROOT", REPO_ROOT))
+SOURCE_MANIFEST = CONFIG_ROOT / "config" / "west.yml"
 ZMK_PROJECT_NAME = "zmk"
 
 # DYA Studio のモジュールはすべてこのリモートから来る。full プロファイルは
@@ -126,15 +130,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if not SOURCE_MANIFEST.exists():
+        raise SystemExit(f"元になる west.yml が見つかりません: {SOURCE_MANIFEST}")
     manifest = build_manifest(SOURCE_MANIFEST.read_text(encoding="utf-8"), args.profile)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(
         "# 自動生成ファイル - tests/env/gen_manifest.py が作成。直接編集しない。\n"
         f"# プロファイル: {args.profile}\n"
+        f"# 元: {SOURCE_MANIFEST}\n"
         + yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
-    print(f"生成しました: {args.out} (プロファイル {args.profile})")
+    print(f"生成しました: {args.out} (プロファイル {args.profile} / 元 {SOURCE_MANIFEST})")
     return 0
 
 

@@ -1,0 +1,53 @@
+/*
+ * ソフトウェア実装のフラッシュ (PC テスト・ベースライン比較用)
+ *
+ * Zephyr 3.5 の nrf52_bsim は HAS_NRFX が立たないため、CONFIG_FLASH=y にすると
+ * nRF の NVMC ドライバが選ばれて Kconfig 警告 (=エラー) でビルドが止まる。
+ * フラッシュが無いと設定の永続化ができず、BLE のボンドも CCC も保存されない。
+ * それでは実機と条件が違いすぎるので、Zephyr 標準の flash simulator を置く。
+ *
+ * この実装は native 向けに -flash=<ファイル> を受け取るので、
+ * 起動をまたいだ永続化 (--reboot) も成立する。
+ */
+
+/* nRF のフラッシュコントローラを止める。有効なままだと NVMC ドライバが選ばれる。 */
+&flash_controller {
+    status = "disabled";
+};
+
+/* その下にある区画も消す。残すと存在しないデバイスを参照してリンクに失敗する。 */
+/delete-node/ &storage_partition;
+
+/ {
+    chosen {
+        /* settings は既定で storage_partition を名指しするので、
+         * chosen でこちらへ向け直す。 */
+        zephyr,settings-partition = &sim_storage;
+    };
+
+    sim_flash_controller: flash-controller@0 {
+        compatible = "zephyr,sim-flash";
+        reg = <0x00000000 0x00080000>;
+        #address-cells = <1>;
+        #size-cells = <1>;
+        erase-value = <0xff>;
+
+        sim_flash: flash@0 {
+            compatible = "soc-nv-flash";
+            erase-block-size = <4096>;
+            write-block-size = <4>;
+            reg = <0x00000000 0x00080000>;
+
+            partitions {
+                compatible = "fixed-partitions";
+                #address-cells = <1>;
+                #size-cells = <1>;
+
+                sim_storage: partition@0 {
+                    label = "sim-storage";
+                    reg = <0x00000000 0x00080000>;
+                };
+            };
+        };
+    };
+};

@@ -1,0 +1,8 @@
+# PC テスト専用。実機ビルドには含まれない。
+
+# 実機 (nRF52) は SoC が電源断を実装しているので CONFIG_ZMK_SLEEP が立つが、
+# native_sim / nrf52_bsim には実装が無く、ZMK_SLEEP ごと落ちてしまう。
+# activity.c の「USB 給電が無いときだけ寝る」経路は USB の有無で挙動が変わる
+# ZMK 中核の唯一の場所なので、テスト側で実装を用意して実機に揃える。
+config HAS_POWEROFF
+    default y if ARCH_POSIX

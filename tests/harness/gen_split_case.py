@@ -4,6 +4,7 @@
 生成物:
   nrf52_bsim.keymap   セントラル(右)側。実機と同じキーマップ + 右半身の打鍵
   nrf52_bsim.conf     bsim で成立させるためだけの設定(両側)
+  shield_defaults.conf 実機シールドの Kconfig.defconfig の中身(両側)
   central.conf        実機のセントラル(右)と同じ設定
   peripheral.conf     実機のペリフェラル(左)と同じ設定
   peripheral.overlay  ペリフェラル(左)側の上書き(col-offset と 左半身の打鍵)
@@ -20,6 +21,7 @@ Kconfig は実機の conf をそのまま読んで使う。手書きの写しを
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -31,12 +33,17 @@ from scenario import MockEvent, Scenario, load_scenario, to_mock_events_by_side
 
 # 実機のビルド構成 (build.yaml)。右がセントラル、左がペリフェラル。
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SHIELD_CONF_DIR = REPO_ROOT / "boards" / "shields" / "torabo_tsuki_lp"
+# layout.py と同じく、過去のリビジョンを読ませたいときはここを差し替える。
+CONFIG_ROOT = Path(os.environ.get("ZMK_CONFIG_SOURCE_ROOT", REPO_ROOT))
+SHIELD_CONF_DIR = CONFIG_ROOT / "boards" / "shields" / "torabo_tsuki_lp"
 CENTRAL_CONF_SOURCES = (
     SHIELD_CONF_DIR / "torabo_tsuki_lp_right.conf",
-    REPO_ROOT / "snippets" / "split-central" / "split-central.conf",
+    CONFIG_ROOT / "snippets" / "split-central" / "split-central.conf",
 )
 PERIPHERAL_CONF_SOURCES = (SHIELD_CONF_DIR / "torabo_tsuki_lp_left.conf",)
+# 実機のシールドが立てている既定値。Tier B は shield を使わないボードで
+# ビルドするため、ここを読んで自分で流し込まないと丸ごと落ちる。
+SHIELD_DEFCONFIG = SHIELD_CONF_DIR / "Kconfig.defconfig"
 
 # nrf52_bsim には載らないので実機 conf から落とす設定。
 # いずれも取得していないハードウェア向けモジュール (sekigon-gonnoc) のもので、
@@ -46,14 +53,12 @@ SKIP_SYMBOLS = {
     "CONFIG_ZMK_CDC_ACM_BOOTLOADER_TRIGGER",
     # zmk-feature-status-led: LED の devicetree ノードがない
     "CONFIG_ZMK_STATUS_LED",
-    # zmk-feature-non-lipo-battery-management: 電池がない
+    # zmk-feature-non-lipo-battery-management: ADC が無いので載らない。
+    # 電池そのものは擬似バッテリー (tests/harness/stubs) で代用する
     "CONFIG_ZMK_NON_LIPO_MIN_MV",
     "CONFIG_ZMK_NON_LIPO_LOW_MV",
-    # 電池センサーが無いので ZMK_BATTERY_REPORTING が立たず、
-    # zmk_peripheral_battery_state_changed イベントがコンパイルされない。
-    # 残すとセントラルのリンクで undefined reference になる
-    "CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_PROXY",
-    "CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING",
+    # nrf52_bsim に SPI コントローラが無い (トラックボール用で Tier B では不要)
+    "CONFIG_SPI",
 }
 
 # BLE のペアリングが終わるまで待つ必要があるため、Tier A より長めに置く。
@@ -79,6 +84,18 @@ CENTRAL_KEYMAP_TEMPLATE = """\
 / {{
     chosen {{
         zmk,physical-layout = &pc_test_layout;
+        zmk,battery = &fake_battery;
+    }};
+
+    /*
+     * 実機は zmk-feature-non-lipo-battery-management が電池を読むが、
+     * あれは ADC ドライバを要求するので nrf52_bsim には載らない。
+     * 電池まわりの機能 (BAS / バッテリー履歴 / 分割のバッテリープロキシ) を
+     * 実機と同じく有効にするため、電圧を固定で返すセンサーで代用する。
+     */
+    fake_battery: fake_battery {{
+        compatible = "zmk,fake-battery";
+        millivolts = <1250>;
     }};
 
     /*
@@ -163,6 +180,12 @@ CONFIG_FLASH_MAP=y
 CONFIG_NVS=y
 CONFIG_SETTINGS=y
 CONFIG_SETTINGS_NVS=y
+
+# 実機では zmk-feature-non-lipo-battery-management が select している。
+# あのモジュールは ADC を要求するので Tier B には載らないが、これが無いと
+# activity.c の「USB 給電が無いときだけ寝る」経路ごと消える。
+# USB の有無で挙動が変わる ZMK 中核の唯一の場所なので、ここは実機に揃える。
+CONFIG_ZMK_SLEEP=y
 """
 
 # 実機の conf を読むときの注記。生成ファイルの先頭に付ける。
@@ -176,6 +199,43 @@ SIDE_CONF_HEADER = """\
 """
 
 
+def read_shield_defaults(source: Path = SHIELD_DEFCONFIG) -> str:
+    """実機シールドの Kconfig.defconfig を conf 形式に落とす。
+
+    Tier B のボードは `nrf52_bsim//zmk_test_mock` で shield を使わないため、
+    `if SHIELD_TORABO_TSUKI_LP_*` の中身が一切適用されない。放っておくと
+    キーボード名・バッテリー報告・バッテリー履歴・分割の通知などが
+    実機と違う状態でテストすることになる。
+    """
+    if not source.exists():
+        raise FileNotFoundError(f"実機の Kconfig.defconfig が見つかりません: {source}")
+
+    lines: list[str] = []
+    symbol: str | None = None
+    for raw in source.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if line.startswith("config "):
+            symbol = "CONFIG_" + line.split(None, 1)[1].strip()
+        elif line.startswith("default ") and symbol is not None:
+            value = line.split(None, 1)[1].strip()
+            if symbol not in SKIP_SYMBOLS:
+                lines.append(f"{symbol}={value}")
+            symbol = None
+
+    if not lines:
+        raise ValueError(f"{source} から既定値を 1 つも読み取れませんでした")
+
+    rel = source.relative_to(CONFIG_ROOT)
+    return (
+        "# 自動生成ファイル - tests/harness/gen_split_case.py が作成。直接編集しない。\n"
+        "#\n"
+        "# 実機シールドの Kconfig.defconfig をそのまま取り込んだもの。\n"
+        "# Tier B は shield を使わないボードでビルドするので、ここを流し込まないと\n"
+        "# 実機で有効な機能がまとめて落ちる。\n"
+        f"# 取り込み元:\n#   {rel}\n\n" + "\n".join(lines) + "\n"
+    )
+
+
 def read_real_conf(sources: tuple[Path, ...]) -> str:
     """実機の conf を連結する。bsim に載らない項目だけ落とす。"""
     chunks: list[str] = []
@@ -187,11 +247,11 @@ def read_real_conf(sources: tuple[Path, ...]) -> str:
             for line in source.read_text(encoding="utf-8").splitlines()
             if line.split("=", 1)[0].strip() not in SKIP_SYMBOLS
         ]
-        rel = source.relative_to(REPO_ROOT)
+        rel = source.relative_to(CONFIG_ROOT)
         chunks.append(f"# ----- {rel} -----\n" + "\n".join(kept).strip() + "\n")
 
     header = SIDE_CONF_HEADER.format(
-        sources="\n".join(f"#   {s.relative_to(REPO_ROOT)}" for s in sources)
+        sources="\n".join(f"#   {s.relative_to(CONFIG_ROOT)}" for s in sources)
     )
     return header + "\n" + "\n".join(chunks)
 
@@ -241,6 +301,7 @@ def write_case(scenario: Scenario, layout: Layout, out_dir: Path) -> None:
         ),
     )
     write_if_changed(out_dir / "nrf52_bsim.conf", CONF_TEMPLATE)
+    write_if_changed(out_dir / "shield_defaults.conf", read_shield_defaults())
     write_if_changed(out_dir / "central.conf", read_real_conf(CENTRAL_CONF_SOURCES))
     write_if_changed(out_dir / "peripheral.conf", read_real_conf(PERIPHERAL_CONF_SOURCES))
     write_if_changed(

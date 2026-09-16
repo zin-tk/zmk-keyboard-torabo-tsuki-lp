@@ -22,7 +22,24 @@ export BSIM_OUT_PATH=${BSIM_OUT_PATH:-$WORKSPACE/tools/bsim}
 export BSIM_COMPONENTS_PATH=${BSIM_COMPONENTS_PATH:-$BSIM_OUT_PATH/components}
 HARNESS_DIR="$REPO_ROOT/tests/harness"
 SCENARIOS_DIR="$REPO_ROOT/tests/scenarios"
-BOARD=nrf52_bsim//zmk_test_mock
+# ZMK v0.4 (Zephyr 4.1) は mock kscan をボードのバリアントとして持つ。
+# Zephyr 3.5 の頃はバリアントの書式が無く、ZMK の app/boards/nrf52_bsim.overlay が
+# 同じ役目を果たすので、ベースライン比較のときは素の nrf52_bsim を指定する。
+BOARD=${ZMK_TEST_BOARD:-nrf52_bsim//zmk_test_mock}
+# ベースライン比較のときに最後へ重ねる conf。
+EXTRA_CONF=${ZMK_TEST_EXTRA_CONF:-}
+# 同じく重ねる devicetree オーバーレイ (tests/harness/sim-flash.overlay など)。
+EXTRA_OVERLAY=${ZMK_TEST_EXTRA_OVERLAY:-}
+# 設定の永続化の持ち方。
+#   nvs  既定。-flash=<ファイル> で機体ごとに実体を持つ (--reboot が使える)
+#   simflash  フラッシュシミュレータ任せ。-flash= は nrf52_bsim の NVMC モデルに
+#             取られてしまうので渡さず、機体ごとの作業ディレクトリに置かれる
+#             既定のファイル (flash.bin) をそのまま使う
+PERSISTENCE=${ZMK_TEST_PERSISTENCE:-nvs}
+# ホスト役が HID レポートの受信まで確認できるか。
+# Zephyr 3.5 (ベースライン比較) では GATT クライアントが CCC の書き込みまで
+# 進めないため、キーボードが HID を正しく公開しているところまでで判定する。
+CHECK_REPORTS=${ZMK_TEST_CHECK_REPORTS:-1}
 # ホスト役は ZMK を使わない素の Zephyr アプリなので、mock kscan の付いた
 # バリアントではなく Zephyr 標準の nrf52_bsim をそのまま使う。
 HOST_BOARD=nrf52_bsim
@@ -32,6 +49,12 @@ PHY_TIMEOUT_SEC=600
 
 export PYTHONPATH="$HARNESS_DIR"
 export ZMK_APP_DIR="$WORKSPACE/zmk/app"
+
+# コンテナを作り直すと ~/.cmake のパッケージ登録が消える。ZMK の app は
+# find_package(Zephyr) をこれで解決しているので、無ければ登録し直す。
+if [ ! -d "$HOME/.cmake/packages/Zephyr" ]; then
+    (cd "$WORKSPACE" && west zephyr-export) >/dev/null 2>&1
+fi
 
 if [ ! -x "$BSIM_OUT_PATH/bin/bs_2G4_phy_v1" ]; then
     echo "BabbleSim が見つかりません。先に ./tests/env/setup-split.sh を実行してください。" >&2
@@ -74,8 +97,15 @@ fi
 # ホスト役はシナリオに依存しないので、全シナリオで 1 つの成果物を使い回す。
 host_build_dir="$WORK_DIR/build-split/_ble_host"
 host_build_log="$WORK_DIR/build-split-ble-host.log"
+host_conf_arg=()
+if [ -n "$EXTRA_CONF" ] || [ -n "$EXTRA_OVERLAY" ]; then
+    host_conf_arg=(--)
+    [ -n "$EXTRA_CONF" ] && host_conf_arg+=("-DEXTRA_CONF_FILE=$EXTRA_CONF")
+    [ -n "$EXTRA_OVERLAY" ] && host_conf_arg+=("-DEXTRA_DTC_OVERLAY_FILE=$EXTRA_OVERLAY")
+fi
 if ! (cd "$WORKSPACE" && west build -s "$HOST_SRC_DIR" -d "$host_build_dir" -b "$HOST_BOARD" \
-        "${pristine_arg[@]+"${pristine_arg[@]}"}") > "$host_build_log" 2>&1; then
+        "${pristine_arg[@]+"${pristine_arg[@]}"}" \
+        "${host_conf_arg[@]+"${host_conf_arg[@]}"}") > "$host_build_log" 2>&1; then
     echo "ホスト役のビルドに失敗しました: $host_build_log" >&2
     tail -25 "$host_build_log" >&2
     exit 1
@@ -88,18 +118,40 @@ run_simulation() {
     local suffix="$1"
     local central_pid handbrake_pid peripheral_pid host_pid
 
-    cd "$BSIM_OUT_PATH/bin"
-    "./$central_exe" -d=0 -s="$sim_id" -flash="$flash_dir/central.bin" \
-        > "$build_dir/central$suffix.log" 2>&1 &
+    # 前回が途中で落ちていると、その時のロックが残っていて全機が起動に失敗する。
+    # 中身は今から上書きするものだけなので、消してから始める。
+    rm -rf "/tmp/bs_root/$sim_id"
+
+    # 各機は自分の作業ディレクトリで動かす。フラッシュシミュレータは
+    # 作業ディレクトリの flash.bin を既定で使うので、分けないと 4 台が
+    # 同じファイルを掴んで壊れる。--reboot では同じ場所を引き継ぐ。
+    local d
+    for d in central peripheral host; do
+        mkdir -p "$flash_dir/$d"
+    done
+
+    # NVMC モデルを使う構成では、フラッシュの実体をファイルで明示する。
+    local flash_central=() flash_peripheral=() flash_host=()
+    if [ "$PERSISTENCE" = nvs ]; then
+        flash_central=(-flash="$flash_dir/central.bin")
+        flash_peripheral=(-flash="$flash_dir/peripheral.bin")
+        flash_host=(-flash="$flash_dir/host.bin")
+    fi
+
+    (cd "$flash_dir/central" && "$BSIM_OUT_PATH/bin/$central_exe" -d=0 -s="$sim_id" \
+        "${flash_central[@]+"${flash_central[@]}"}") > "$build_dir/central$suffix.log" 2>&1 &
     central_pid=$!
+    (cd "$flash_dir/peripheral" && "$BSIM_OUT_PATH/bin/$peripheral_exe" -d=2 -s="$sim_id" \
+        "${flash_peripheral[@]+"${flash_peripheral[@]}"}") > "$build_dir/peripheral$suffix.log" 2>&1 &
+    peripheral_pid=$!
+    (cd "$flash_dir/host" && "$BSIM_OUT_PATH/bin/$host_exe" -d=3 -s="$sim_id" \
+        "${flash_host[@]+"${flash_host[@]}"}") > "$build_dir/host$suffix.log" 2>&1 &
+    host_pid=$!
+
+    # phy と handbrake は ../lib/ を相対で参照するので bsim の bin から動かす。
+    cd "$BSIM_OUT_PATH/bin"
     ./bs_device_handbrake -s="$sim_id" -d=1 -r=10 > "$build_dir/handbrake$suffix.log" 2>&1 &
     handbrake_pid=$!
-    "./$peripheral_exe" -d=2 -s="$sim_id" -flash="$flash_dir/peripheral.bin" \
-        > "$build_dir/peripheral$suffix.log" 2>&1 &
-    peripheral_pid=$!
-    "./$host_exe" -d=3 -s="$sim_id" -flash="$flash_dir/host.bin" \
-        > "$build_dir/host$suffix.log" 2>&1 &
-    host_pid=$!
 
     timeout "$PHY_TIMEOUT_SEC" ./bs_2G4_phy_v1 -s="$sim_id" -D=4 \
         -sim_length="$SIM_LENGTH_US" > "$build_dir/phy$suffix.log" 2>&1
@@ -134,9 +186,15 @@ check_pass() {
     fi
 
     # スナップショットは ZMK 内部のログなので、HOG が壊れていても通ってしまう。
-    # ホストに実際にレポートが届いたことは別に確かめる。
-    if ! grep -q "HOST: report " "$build_dir/host$suffix.log"; then
-        echo "FAIL: $name ($label ホストに HID レポートが届いていません)"
+    # ホスト側から見た HID の状態を別に確かめる。
+    if [ "$CHECK_REPORTS" = 1 ]; then
+        if ! grep -q "HOST: report " "$build_dir/host$suffix.log"; then
+            echo "FAIL: $name ($label ホストに HID レポートが届いていません)"
+            echo "  ホスト: $build_dir/host$suffix.log"
+            return 1
+        fi
+    elif ! grep -q "HOST: found .* report characteristic" "$build_dir/host$suffix.log"; then
+        echo "FAIL: $name ($label ホストが HID のレポート特性を見つけられていません)"
         echo "  ホスト: $build_dir/host$suffix.log"
         return 1
     fi
@@ -147,9 +205,11 @@ check_pass() {
 build_half() {
     local half="$1" build_dir="$2" gen_dir="$3" log="$4"
     shift 4
+    # stubs は擬似バッテリーを持ち込む。実機のシールドが立てている
+    # CONFIG_ZMK_BATTERY_REPORTING を Tier B でも成立させるために要る。
     (cd "$WORKSPACE" && west build -s "$WORKSPACE/zmk/app" -d "$build_dir/$half" -b "$BOARD" \
         "${pristine_arg[@]+"${pristine_arg[@]}"}" -- \
-        -DZMK_CONFIG="$gen_dir" "$@") > "$log" 2>&1
+        -DZMK_CONFIG="$gen_dir" -DZMK_EXTRA_MODULES="$HARNESS_DIR/stubs" "$@") > "$log" 2>&1
 }
 
 failed=0
@@ -174,15 +234,16 @@ for scenario_dir in "${scenario_dirs[@]}"; do
 
     if ! build_half central "$build_dir" "$gen_dir" "$WORK_DIR/build-split-$name-central.log" \
             -DCONFIG_ZMK_SPLIT_ROLE_CENTRAL=y \
-            -DEXTRA_CONF_FILE="$gen_dir/central.conf"; then
+            ${EXTRA_OVERLAY:+-DEXTRA_DTC_OVERLAY_FILE="$EXTRA_OVERLAY"} \
+            -DEXTRA_CONF_FILE="$gen_dir/shield_defaults.conf;$gen_dir/central.conf${EXTRA_CONF:+;$EXTRA_CONF}"; then
         echo "FAIL: $name (セントラルのビルド失敗)"
         tail -25 "$WORK_DIR/build-split-$name-central.log"
         failed=1
         continue
     fi
     if ! build_half peripheral "$build_dir" "$gen_dir" "$WORK_DIR/build-split-$name-peripheral.log" \
-            -DEXTRA_DTC_OVERLAY_FILE="$gen_dir/peripheral.overlay" \
-            -DEXTRA_CONF_FILE="$gen_dir/peripheral.conf"; then
+            -DEXTRA_DTC_OVERLAY_FILE="$gen_dir/peripheral.overlay${EXTRA_OVERLAY:+;$EXTRA_OVERLAY}" \
+            -DEXTRA_CONF_FILE="$gen_dir/shield_defaults.conf;$gen_dir/peripheral.conf${EXTRA_CONF:+;$EXTRA_CONF}"; then
         echo "FAIL: $name (ペリフェラルのビルド失敗)"
         tail -25 "$WORK_DIR/build-split-$name-peripheral.log"
         failed=1

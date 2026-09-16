@@ -30,6 +30,12 @@
 /* 判定に使う接頭辞。変えるときは run_split_tests.sh も合わせること。 */
 #define HOST_TAG "HOST: "
 
+/* ベースライン比較で使う Zephyr 3.5 にはこの名前が無い。
+ * 当時から「0 を渡せば CCC を自動で探す」動作は同じ。 */
+#ifndef BT_GATT_AUTO_DISCOVER_CCC_HANDLE
+#define BT_GATT_AUTO_DISCOVER_CCC_HANDLE 0U
+#endif
+
 /* 見つけてから接続要求を出すまでの猶予。bsim なので実時間ではない。 */
 #define CONNECT_TIMEOUT_MS 5000
 
@@ -56,14 +62,18 @@ static struct bt_conn_le_create_param peer_create_param;
 static uint8_t connect_attempts;
 
 /* HID サービスの探索と購読で使う状態。接続は 1 本だけなので静的に持つ。 */
-static struct bt_gatt_discover_params discover_params;
-static struct bt_uuid_16 discover_uuid = BT_UUID_INIT_16(0);
+/* サービス探索と特性探索で params を使い回すと、Zephyr 3.5 では前の探索が
+ * まだ握っている扱いになって先へ進まない。別々に持つ。 */
+static struct bt_gatt_discover_params svc_discover_params;
+static struct bt_uuid_16 svc_discover_uuid = BT_UUID_INIT_16(0);
+static struct bt_gatt_discover_params chrc_discover_params;
+static struct bt_uuid_16 chrc_discover_uuid = BT_UUID_INIT_16(0);
+static uint16_t hids_start_handle;
 static uint16_t hids_end_handle;
 static uint16_t report_handles[MAX_REPORTS];
 static uint8_t report_count;
 static uint8_t subscribe_index;
 static struct bt_gatt_subscribe_params subscribe_params[MAX_REPORTS];
-static struct bt_gatt_discover_params ccc_discover_params[MAX_REPORTS];
 
 static bool ad_has_hid_service(struct bt_data *data, void *user_data) {
     bool *found = user_data;
@@ -160,6 +170,35 @@ static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t adv_type
 
 static void subscribe_next(struct bt_conn *conn);
 
+/* GATT の書き込みをシステムワークキューから出すと、Zephyr 3.5 では
+ * そのまま返ってこない。購読は専用スレッドから出す。 */
+static K_SEM_DEFINE(subscribe_sem, 0, MAX_REPORTS + 1);
+static bool reports_announced;
+
+static void subscribe_thread_fn(void *a, void *b, void *c) {
+    ARG_UNUSED(a);
+    ARG_UNUSED(b);
+    ARG_UNUSED(c);
+
+    while (true) {
+        k_sem_take(&subscribe_sem, K_FOREVER);
+
+        if (!reports_announced) {
+            reports_announced = true;
+            if (report_count == 0) {
+                printk(HOST_TAG "no notifiable report characteristic found\n");
+                continue;
+            }
+            printk(HOST_TAG "found %u report characteristic(s)\n", report_count);
+        }
+        if (default_conn) {
+            subscribe_next(default_conn);
+        }
+    }
+}
+
+K_THREAD_DEFINE(subscribe_thread, 2048, subscribe_thread_fn, NULL, NULL, NULL, 5, 0, 0);
+
 static uint8_t report_received(struct bt_conn *conn, struct bt_gatt_subscribe_params *params,
                                const void *data, uint16_t length) {
     const uint8_t *bytes = data;
@@ -195,7 +234,8 @@ static void subscribe_done(struct bt_conn *conn, uint8_t err,
         printk(HOST_TAG "subscribed to report 0x%04x\n", params->value_handle);
     }
     subscribe_index++;
-    subscribe_next(conn);
+    /* コールバックの中から次を出さず、専用スレッドに任せる。 */
+    k_sem_give(&subscribe_sem);
 }
 
 /* ATT のやり取りは 1 本ずつ進める。完了コールバックから次を呼ぶ。 */
@@ -213,10 +253,11 @@ static void subscribe_next(struct bt_conn *conn) {
     params->notify = report_received;
     params->subscribe = subscribe_done;
     params->value_handle = report_handles[i];
-    /* CCC のハンドルは Zephyr に探させる (CONFIG_BT_GATT_AUTO_DISCOVER_CCC)。 */
-    params->ccc_handle = BT_GATT_AUTO_DISCOVER_CCC_HANDLE;
+    /* CCC を Zephyr に探させる経路は、Zephyr 3.5 だと探索の終わりを
+     * 取りこぼして止まる。HOG のレポート特性は値の直後に CCC が来るので
+     * 直接指定する。違っていれば購読が失敗してログに出る。 */
+    params->ccc_handle = report_handles[i] + 1;
     params->end_handle = hids_end_handle;
-    params->disc_params = &ccc_discover_params[i];
     params->value = BT_GATT_CCC_NOTIFY;
     params->min_security = BT_SECURITY_L2;
 
@@ -228,17 +269,21 @@ static void subscribe_next(struct bt_conn *conn) {
     }
 }
 
+/* Zephyr 3.5 は、探索が「もう無い」で終わっても attr == NULL の
+ * コールバックを呼ばない。見つけるたびに締め切りを延ばし、
+ * 静かになったところで次へ進む。どちらのバージョンでも同じように動く。 */
+#define DISCOVERY_SETTLE_MS 500
+
+static void report_settle_expiry(struct k_timer *timer) { k_sem_give(&subscribe_sem); }
+
+static K_TIMER_DEFINE(report_settle_timer, report_settle_expiry, NULL);
+
 static uint8_t discover_report(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                                struct bt_gatt_discover_params *params) {
     struct bt_gatt_chrc *chrc;
 
     if (!attr) {
-        if (report_count == 0) {
-            printk(HOST_TAG "no notifiable report characteristic found\n");
-            return BT_GATT_ITER_STOP;
-        }
-        printk(HOST_TAG "found %u report characteristic(s)\n", report_count);
-        subscribe_next(conn);
+        k_timer_start(&report_settle_timer, K_NO_WAIT, K_NO_WAIT);
         return BT_GATT_ITER_STOP;
     }
 
@@ -246,48 +291,74 @@ static uint8_t discover_report(struct bt_conn *conn, const struct bt_gatt_attr *
     if ((chrc->properties & BT_GATT_CHRC_NOTIFY) && report_count < MAX_REPORTS) {
         report_handles[report_count++] = chrc->value_handle;
     }
+    k_timer_start(&report_settle_timer, K_MSEC(DISCOVERY_SETTLE_MS), K_NO_WAIT);
     return BT_GATT_ITER_CONTINUE;
 }
 
+/* サービス探索と特性探索で params を共有すると Zephyr 3.5 で詰まるので、
+ * 別々の params を使う。探索が最後まで終わってから次を出す。 */
+static void start_report_discovery(struct bt_conn *conn) {
+    int err;
+
+    memcpy(&chrc_discover_uuid, BT_UUID_HIDS_REPORT, sizeof(chrc_discover_uuid));
+    chrc_discover_params.uuid = &chrc_discover_uuid.uuid;
+    chrc_discover_params.start_handle = hids_start_handle;
+    chrc_discover_params.end_handle = hids_end_handle;
+    chrc_discover_params.type = BT_GATT_DISCOVER_CHARACTERISTIC;
+    chrc_discover_params.func = discover_report;
+
+    printk(HOST_TAG "discovering report characteristics 0x%04x-0x%04x\n", hids_start_handle,
+           hids_end_handle);
+    err = bt_gatt_discover(conn, &chrc_discover_params);
+    if (err) {
+        printk(HOST_TAG "report discovery failed (err %d)\n", err);
+    }
+}
+
+/* 探索のコールバックの中から次の探索を出すのは避け、work に逃がす。 */
+static void discover_report_work_handler(struct k_work *work) {
+    if (default_conn) {
+        start_report_discovery(default_conn);
+    }
+}
+
+static K_WORK_DEFINE(discover_report_work, discover_report_work_handler);
+
+/* 途中で BT_GATT_ITER_STOP を返すと、Zephyr 3.5 では ATT のやり取りが
+ * 終わったことにならず次の探索が始まらない。最後まで回してから次へ進む。 */
 static uint8_t discover_hids(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                              struct bt_gatt_discover_params *params) {
     struct bt_gatt_service_val *service;
-    int err;
 
+    /* Zephyr 3.5 では、UUID を指定したサービス探索が「見つからない」で
+     * 終わっても attr == NULL のコールバックが来ない。見つけた時点で打ち切る。 */
     if (!attr) {
         printk(HOST_TAG "HID service not found\n");
         return BT_GATT_ITER_STOP;
     }
 
     service = attr->user_data;
+    hids_start_handle = attr->handle + 1;
     hids_end_handle = service->end_handle;
     printk(HOST_TAG "HID service at 0x%04x-0x%04x\n", attr->handle, service->end_handle);
 
-    memcpy(&discover_uuid, BT_UUID_HIDS_REPORT, sizeof(discover_uuid));
-    discover_params.uuid = &discover_uuid.uuid;
-    discover_params.start_handle = attr->handle + 1;
-    discover_params.end_handle = service->end_handle;
-    discover_params.type = BT_GATT_DISCOVER_CHARACTERISTIC;
-    discover_params.func = discover_report;
-
-    err = bt_gatt_discover(conn, &discover_params);
-    if (err) {
-        printk(HOST_TAG "report discovery failed (err %d)\n", err);
-    }
+    k_work_submit(&discover_report_work);
     return BT_GATT_ITER_STOP;
 }
 
 static void start_discovery(struct bt_conn *conn) {
     int err;
 
-    memcpy(&discover_uuid, BT_UUID_HIDS, sizeof(discover_uuid));
-    discover_params.uuid = &discover_uuid.uuid;
-    discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
-    discover_params.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
-    discover_params.type = BT_GATT_DISCOVER_PRIMARY;
-    discover_params.func = discover_hids;
+    hids_end_handle = 0;
 
-    err = bt_gatt_discover(conn, &discover_params);
+    memcpy(&svc_discover_uuid, BT_UUID_HIDS, sizeof(svc_discover_uuid));
+    svc_discover_params.uuid = &svc_discover_uuid.uuid;
+    svc_discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
+    svc_discover_params.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+    svc_discover_params.type = BT_GATT_DISCOVER_PRIMARY;
+    svc_discover_params.func = discover_hids;
+
+    err = bt_gatt_discover(conn, &svc_discover_params);
     if (err) {
         printk(HOST_TAG "service discovery failed (err %d)\n", err);
     }
