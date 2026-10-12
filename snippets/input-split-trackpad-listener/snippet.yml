@@ -1,0 +1,3 @@
+name: input-split-trackpad-listener
+append:
+  EXTRA_DTC_OVERLAY_FILE: input-split-trackpad-listener.overlay
