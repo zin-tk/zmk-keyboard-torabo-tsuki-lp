@@ -38,30 +38,10 @@ Chrome / Edge で USB (Web Serial) または Bluetooth (Web Bluetooth) 接続し
 | artifact | 用途 |
 | --- | --- |
 | `right_central` / `left_peripheral` | 標準構成 (右トラックボール) |
-| `right_central_encoder` / `left_peripheral_encoder` | 左にロータリーエンコーダを付ける構成 |
 | `right_central_trackpad` / `left_peripheral_trackpad` | 左に mini トラックパッドを付ける構成 |
-| `torabo_tsuki_lp_double_ball_*` | 左右両方にトラックボールを付ける構成 |
 | `settings_reset` | 設定消去用 |
 
-`_encoder` 付きと `_trackpad` 付きは**左右セットで書き込んでください**。
-`_encoder` はセントラル側にもセンサーノードが必要で、片側だけだとセンサー通知を受けた瞬間に
-リセットループになります。
-
-## ロータリーエンコーダ
-
-左ペリフェラルの J101 (トラックボール / トラックパッド用端子) に EC11 互換
-エンコーダを接続する構成です。SPI0 と I2C0 を止めて GPIO を使うため、
-この構成では左側にトラックボール / トラックパッドは載せられません。
-
-| 信号 | ピン |
-| --- | --- |
-| ENC_A | P0.16 (SDIO) |
-| ENC_B | P0.19 (MOTION) |
-| SW | P0.18 (SCLK)、共通端子は P0.20 (CS) |
-
-* 回転の割り当ては DYA Studio からレイヤーごとに変更できます (既定は音量 +/-)
-* 押し込みスイッチはキー位置 62 (最下段の右から 4 番目) に載っているので、
-  普通のキーと同じように DYA Studio から割り当てられます
+`_trackpad` 付きは**左右セットで書き込んでください**。
 
 ## トラックパッド
 
@@ -70,9 +50,10 @@ Chrome / Edge で USB (Web Serial) または Bluetooth (Web Bluetooth) 接続し
 
 * 縦スクロール専用です (横スクロール帯は無効にしてある)
 * どのレイヤーでもスクロールします。キーマップの設定は不要です
-* 1 本指タップで左クリック、2 本指タップで右クリックになります
-* スクロールの向き・速度は DYA Studio からは変更できません。
-  向きが逆なら `snippets/input-trackpad-mini/input-trackpad-mini.overlay` に `v-invert;` を足して再ビルドします
+* 1 本指タップでミドルクリックになります。2 本指タップは無効です
+* スクロール速度は DYA Studio の Trackball タブの `trackpad` で変更できます (既定 1/6)
+* スクロールの向きは DYA Studio からは変更できません。
+  逆なら `snippets/input-trackpad-mini/input-trackpad-mini.overlay` に `v-invert;` を足して再ビルドします
 
 ## PC でのキーマップ確認
 
