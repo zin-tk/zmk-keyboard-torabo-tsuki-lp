@@ -1,0 +1,22 @@
+/*
+ * 左ペリフェラルの mini トラックパッド (input-trackpad-mini + input-split) を
+ * セントラルで受ける。ドライバが scroller-mode でホイールとボタンを直接出すので
+ * input processor は通さない。
+ * input-split-listener と同じノードを定義するため、同時に指定しないこと。
+ */
+/ {
+    split_inputs {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        pointing_device_split: pointing_device_split@0 {
+            compatible = "zmk,input-split";
+            reg = <0>;
+        };
+    };
+
+    trackpad_split_listener: trackpad_split_listener {
+        compatible = "zmk,input-listener";
+        device = <&pointing_device_split>;
+    };
+};

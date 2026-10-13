@@ -26,6 +26,15 @@ include:
     shield: torabo_tsuki_lp_right
     snippet: "studio-rpc-usb-uart split-central input-trackball input-listener encoder"
     artifact-name: right_central_encoder
+  # 左に mini トラックパッドを付ける構成 (縦スクロール専用)。左右セットで書き込むこと
+  - board: bmp_boost
+    shield: torabo_tsuki_lp_left
+    snippet: "studio-rpc-usb-uart input-trackpad-mini input-split"
+    artifact-name: left_peripheral_trackpad
+  - board: bmp_boost
+    shield: torabo_tsuki_lp_right
+    snippet: "studio-rpc-usb-uart split-central input-trackball input-listener input-split-trackpad-listener"
+    artifact-name: right_central_trackpad
   - board: bmp_boost
     shield: torabo_tsuki_lp_left
     snippet: "studio-rpc-usb-uart input-trackball input-split"
