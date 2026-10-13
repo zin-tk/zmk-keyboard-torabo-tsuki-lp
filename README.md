@@ -50,9 +50,10 @@ Chrome / Edge で USB (Web Serial) または Bluetooth (Web Bluetooth) 接続し
 
 * 縦スクロール専用です (横スクロール帯は無効にしてある)
 * どのレイヤーでもスクロールします。キーマップの設定は不要です
-* 1 本指タップで左クリック、2 本指タップで右クリックになります
-* スクロールの向き・速度は DYA Studio からは変更できません。
-  向きが逆なら `snippets/input-trackpad-mini/input-trackpad-mini.overlay` に `v-invert;` を足して再ビルドします
+* 1 本指タップでミドルクリックになります。2 本指タップは無効です
+* スクロール速度は DYA Studio の Trackball タブの `trackpad` で変更できます (既定 1/6)
+* スクロールの向きは DYA Studio からは変更できません。
+  逆なら `snippets/input-trackpad-mini/input-trackpad-mini.overlay` に `v-invert;` を足して再ビルドします
 
 ## PC でのキーマップ確認
 

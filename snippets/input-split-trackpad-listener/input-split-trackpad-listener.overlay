@@ -1,7 +1,11 @@
+#include <dt-bindings/zmk/runtime_input_processor.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
 /*
  * 左ペリフェラルの mini トラックパッド (input-trackpad-mini + input-split) を
- * セントラルで受ける。ドライバが scroller-mode でホイールとボタンを直接出すので
- * input processor は通さない。
+ * セントラルで受ける。ドライバが scroller-mode でホイールとボタンを直接出すので、
+ * ここではスクロール量とタップのボタンだけを調整する。
+ * スクロール量は DYA Studio の Trackball タブ ("trackpad") から実行時に変えられる。
  * input-split-listener と同じノードを定義するため、同時に指定しないこと。
  */
 / {
@@ -15,8 +19,40 @@
         };
     };
 
+    /*
+     * ドライバは 1 本指タップを BTN_0、2 本指タップを BTN_1 で出す。
+     * input listener は BTN_0〜4 以外を捨てるので、BTN_9 へ付け替えると無効になる。
+     */
+    trackpad_tap_mapper: trackpad_tap_mapper {
+        compatible = "zmk,input-processor-code-mapper";
+        #input-processor-cells = <0>;
+        type = <INPUT_EV_KEY>;
+        map
+            = <INPUT_BTN_0 INPUT_BTN_2>  /* 1 本指タップ → ミドルクリック */
+            , <INPUT_BTN_1 INPUT_BTN_9>  /* 2 本指タップ → 無効 */
+            ;
+    };
+
+    /*
+     * ドライバはタッチ座標の差分 (縦の解像度 300) をそのままホイール量として出す。
+     * 1/3 でも速すぎたので初期値は 1/6。DYA Studio から実行時に変えられる。
+     */
+    trackpad_scroll_runtime_input_processor: trackpad_scroll_runtime_input_processor {
+        compatible = "zmk,input-processor-runtime";
+        processor-label = "trackpad";
+        type = <INPUT_EV_REL>;
+        x-codes = <INPUT_REL_HWHEEL>;
+        y-codes = <INPUT_REL_WHEEL>;
+        scale-multiplier = <1>;
+        scale-divisor = <6>;
+        track-remainders;
+        #input-processor-cells = <0>;
+    };
+
     trackpad_split_listener: trackpad_split_listener {
         compatible = "zmk,input-listener";
         device = <&pointing_device_split>;
+        /* スクロール量 (慣性分も含む) を縮め、タップのボタンを付け替える */
+        input-processors = <&trackpad_scroll_runtime_input_processor>, <&trackpad_tap_mapper>;
     };
 };
