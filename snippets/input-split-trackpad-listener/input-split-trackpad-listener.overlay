@@ -27,10 +27,8 @@
         compatible = "zmk,input-processor-code-mapper";
         #input-processor-cells = <0>;
         type = <INPUT_EV_KEY>;
-        map
-            = <INPUT_BTN_0 INPUT_BTN_2>  /* 1 本指タップ → ミドルクリック */
-            , <INPUT_BTN_1 INPUT_BTN_9>  /* 2 本指タップ → 無効 */
-            ;
+        /* 1 本指タップ (BTN_0) はそのまま左クリック */
+        map = <INPUT_BTN_1 INPUT_BTN_9>;  /* 2 本指タップ → 無効 */
     };
 
     /*
@@ -49,10 +47,30 @@
         #input-processor-cells = <0>;
     };
 
+    /*
+     * WIN レイヤー (keymap.keymap の LT_WIN = 1) がオンのときだけ、上の "trackpad" の
+     * 後にさらに掛ける倍率。BT1/BT2 に切り替えるとオンになるので、Windows 側の
+     * スクロール量だけを DYA Studio の "tp_win" で調整できる。初期値は等倍 (変化なし)。
+     */
+    trackpad_scroll_win_runtime_input_processor: trackpad_scroll_win_runtime_input_processor {
+        compatible = "zmk,input-processor-runtime";
+        processor-label = "tp_win";
+        type = <INPUT_EV_REL>;
+        x-codes = <INPUT_REL_HWHEEL>;
+        y-codes = <INPUT_REL_WHEEL>;
+        scale-multiplier = <1>;
+        scale-divisor = <1>;
+        track-remainders;
+        active-layers = <(1 << 1)>;
+        #input-processor-cells = <0>;
+    };
+
     trackpad_split_listener: trackpad_split_listener {
         compatible = "zmk,input-listener";
         device = <&pointing_device_split>;
         /* スクロール量 (慣性分も含む) を縮め、タップのボタンを付け替える */
-        input-processors = <&trackpad_scroll_runtime_input_processor>, <&trackpad_tap_mapper>;
+        input-processors = <&trackpad_scroll_runtime_input_processor>,
+                           <&trackpad_scroll_win_runtime_input_processor>,
+                           <&trackpad_tap_mapper>;
     };
 };
